@@ -51,6 +51,8 @@ def state_to_features(game_state: dict) -> np.array:
     :param game_state:  A dictionary describing the current game board.
     :return: np.array
     """
+    return state_to_features_limited_detection(game_state)
+
     # This is the dict before the game begins and after it ends
     if game_state is None:
         return None
@@ -69,6 +71,43 @@ def state_to_features(game_state: dict) -> np.array:
     # and return them as a vector
     return stacked_channels.reshape(-1)
 
+DETECTION_RADIUS = 8.1
+def state_to_features_limited_detection(game_state: dict) -> np.array:
+    """
+    *This is not a required function, but an idea to structure your code.*
+
+    Converts the game state to the input of your model, i.e.
+    a feature vector.
+
+    You can find out about the state of the game environment via game_state,
+    which is a dictionary. Consult 'get_state_for_agent' in environment.py to see
+    what it contains.
+
+    :param game_state:  A dictionary describing the current game board.
+    :return: np.array
+    """
+    # This is the dict before the game begins and after it ends
+    if game_state is None:
+        return None
+
+    # For example, you could construct several channels of equal shape, ...
+    channels = []
+    self_position = game_state['self'][3]
+    channels.append(convert_agent_state_to_feature(game_state['self']))
+    for other in game_state['others']:
+        if dist(self_position, other[3]) <= DETECTION_RADIUS:
+            channels.append(convert_agent_state_to_feature(other))
+    for bomb in game_state['bombs']:
+        if dist(self_position, bomb[0]) <= DETECTION_RADIUS:
+            channels.append(convert_bomb_state_to_feature(bomb))
+    for coin in game_state['coins']:
+        if dist(self_position, coin) <= DETECTION_RADIUS:
+            channels.append(convert_coin_state_to_feature(coin))
+    # concatenate them as a feature tensor (they must have the same shape), ...
+    stacked_channels = np.stack(channels)
+    # and return them as a vector
+    return stacked_channels.reshape(-1)
+
 def convert_agent_state_to_feature(agent_state):
     return np.array([agent_state[3][0], agent_state[3][1], 1 if agent_state[2] else 0])
 
@@ -77,3 +116,6 @@ def convert_bomb_state_to_feature(bomb_state):
 
 def convert_coin_state_to_feature(coin_state):
     return np.array([coin_state[0], coin_state[1], -1])
+
+def dist(vector_tuple1, vector_tuple2):
+    return np.sqrt(np.sum(np.square(np.array(vector_tuple1) + np.array(vector_tuple2))))
