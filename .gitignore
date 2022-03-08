@@ -127,3 +127,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+.idea/
+logs/
+replays/
+results/
+screenshots/.gitkeep
+agent_code/__agent/indices_by_state_solo_coin_heaven.pt
+Dockerfile
+*.pt
