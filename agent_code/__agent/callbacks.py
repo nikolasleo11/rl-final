@@ -7,7 +7,7 @@ import numpy as np
 from agent_code.__agent.constants import INDICES_BY_ACTION, SAVED_Q_VALUES_FILE_PATH, SAVED_INDICES_BY_STATE_FILE_PATH, \
     ACTIONS
 
-EPSILON = 0.0
+EPSILON = 0.5
 
 
 def setup(self):
@@ -71,7 +71,7 @@ def state_to_features(game_state: dict) -> np.array:
     # and return them as a vector
     return stacked_channels.reshape(-1)
 
-DETECTION_RADIUS = 8.1
+DETECTION_RADIUS = 5.1
 def state_to_features_limited_detection(game_state: dict) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*

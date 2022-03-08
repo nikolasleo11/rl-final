@@ -135,3 +135,4 @@ screenshots/.gitkeep
 agent_code/__agent/indices_by_state_solo_coin_heaven.pt
 Dockerfile
 *.pt
+agent_code/__agent/saved_plots/

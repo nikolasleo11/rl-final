@@ -10,6 +10,8 @@ import events as e
 from .callbacks import state_to_features
 
 # This is only an example!
+from .statistics_data import RoundBasedStatisticsData
+
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
@@ -19,8 +21,8 @@ RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 
 # Events
 LEARNING_FACTOR = 0.1
-MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN = 1000
-GENERATE_STATISTICS = False
+MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN = 100
+GENERATE_STATISTICS = True
 
 def setup_training(self):
     """
@@ -33,7 +35,7 @@ def setup_training(self):
     # Example: Setup an array that will note transition tuples
     # (s, a, r, s')
     if GENERATE_STATISTICS:
-        self.statistics = np.array([[0, 0, 0, 0], [0, 0, 0, 0]])
+        self.statistics = RoundBasedStatisticsData(self)
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -88,16 +90,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             pickle.dump(self.indices_by_state, file)
 
         if GENERATE_STATISTICS:
-            s = self.statistics.T
-            plt.plot(s[3], s[0] / s[2], '.')
-            plt.ylabel('New discovered States in %')
-            plt.xlabel('Amount of Rounds')
-            plt.show()
-            plt.plot(s[3], s[1], '.')
-            plt.ylabel('Rewards per Round')
-            plt.xlabel('Amount of Rounds')
-            plt.show()
-            print(s)
+            self.statistics.plot(True, True)
 
 
 
@@ -143,7 +136,7 @@ def update_q_values(self, transition):
     '''Updates the q-values using the bellman expectancy equation with greedy policy improvement.'''
 
     if GENERATE_STATISTICS:
-        generate_statistics(self, transition)
+        self.statistics.update_statistics(transition)
 
     append_state_if_not_covered_yet(self, transition.state)
     append_state_if_not_covered_yet(self, transition.next_state)
@@ -154,22 +147,3 @@ def update_q_values(self, transition):
 
     self.q_values[index_state, index_action] += LEARNING_FACTOR * (transition.reward + np.max(self.q_values[index_next_state]) - self.q_values[index_state, index_action])
 
-
-def generate_statistics(self, transition):
-    is_final_round = transition.next_state is None
-    state_str = str(transition.state)
-    state2_str = str(transition.next_state)
-
-    self.statistics[len(self.statistics) - 1][1] += transition.reward
-    self.statistics[len(self.statistics) - 1][2] += 1
-    if state_str not in self.indices_by_state:
-        self.statistics[len(self.statistics) - 1][0] += 1
-        
-    if state2_str not in self.indices_by_state:
-        self.statistics[len(self.statistics) - 1][0] += 1
-
-    if is_final_round:
-        self.statistics[len(self.statistics) - 1][0] += self.statistics[len(self.statistics) - 2][0]
-        self.statistics[len(self.statistics) - 1][2] += self.statistics[len(self.statistics) - 2][2]
-        self.statistics[len(self.statistics) - 1][3] = self.statistics[len(self.statistics) - 2][3] + 1
-        self.statistics = np.append(self.statistics, [[0, 0, 0, 0]], axis=0)
