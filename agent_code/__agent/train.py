@@ -21,7 +21,7 @@ RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 
 # Events
 LEARNING_FACTOR = 0.1
-MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN = 100
+MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN = 1000
 GENERATE_STATISTICS = True
 
 def setup_training(self):

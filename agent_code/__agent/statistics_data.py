@@ -50,7 +50,7 @@ class RoundBasedStatisticsData:
         total_amount_of_moves_per_round = np.array(self.total_amount_of_moves_per_round)[:x_max]
         total_rewards_per_round = np.array(self.total_rewards_per_round)[:x_max]
 
-        plt.scatter(xs, np.mean((np.array(self.total_amount_of_new_states) / np.array(self.total_amount_of_transitions)).reshape(-1, batch_size), axis=1))
+        plt.scatter(xs, np.mean((np.array(self.total_amount_of_new_states)[:x_max] / np.array(self.total_amount_of_transitions)[:x_max]).reshape(-1, batch_size), axis=1))
         plt.title("Average ratio of new states vs total over time")
         plt.xlabel("* " + str(batch_size) + " Rounds")
         plt.ylabel("Average ratio of new states vs total")

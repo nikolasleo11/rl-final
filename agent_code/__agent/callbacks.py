@@ -1,6 +1,7 @@
 import os
 import pickle
 import random
+from collections import namedtuple
 
 import numpy as np
 
@@ -51,7 +52,7 @@ def state_to_features(game_state: dict) -> np.array:
     :param game_state:  A dictionary describing the current game board.
     :return: np.array
     """
-    return state_to_features_limited_detection(game_state)
+    return state_to_features_n_closest(game_state)
 
     # This is the dict before the game begins and after it ends
     if game_state is None:
@@ -71,7 +72,10 @@ def state_to_features(game_state: dict) -> np.array:
     # and return them as a vector
     return stacked_channels.reshape(-1)
 
+
 DETECTION_RADIUS = 5.1
+
+
 def state_to_features_limited_detection(game_state: dict) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*
@@ -108,14 +112,68 @@ def state_to_features_limited_detection(game_state: dict) -> np.array:
     # and return them as a vector
     return stacked_channels.reshape(-1)
 
+
+AMOUNT_ELEMENTS = 5
+Entity = namedtuple('Entity',
+                    ('category', 'position', 'extra_value'))
+
+
+def state_to_features_n_closest(game_state: dict) -> np.array:
+    """
+    *This is not a required function, but an idea to structure your code.*
+
+    Converts the game state to the input of your model, i.e.
+    a feature vector.
+
+    You can find out about the state of the game environment via game_state,
+    which is a dictionary. Consult 'get_state_for_agent' in environment.py to see
+    what it contains.
+
+    :param game_state:  A dictionary describing the current game board.
+    :return: np.array
+    """
+    # This is the dict before the game begins and after it ends
+    if game_state is None:
+        return None
+
+    # For example, you could construct several channels of equal shape, ...
+    channels = []
+    self_position = game_state['self'][3]
+    channels.append(convert_agent_state_to_feature(game_state['self']))
+
+    entities = []
+    for other in game_state['others']:
+        entities.append(feature_to_entity(1, convert_agent_state_to_feature(other)))
+    for bomb in game_state['bombs']:
+        entities.append(feature_to_entity(2, convert_bomb_state_to_feature(bomb)))
+    for coin in game_state['coins']:
+        entities.append(feature_to_entity(3, convert_coin_state_to_feature(coin)))
+
+    entities.sort(key=lambda entity: dist(self_position, entity.position))
+    entities = entities[:AMOUNT_ELEMENTS]
+    entities.sort(key=lambda entity: entity.category)
+    for entity in entities:
+        channels.append(np.array([entity.position[0], entity.position[1], entity.extra_value]))
+    stacked_channels = np.stack(channels)
+    return stacked_channels.reshape(-1)
+
+
 def convert_agent_state_to_feature(agent_state):
     return np.array([agent_state[3][0], agent_state[3][1], 1 if agent_state[2] else 0])
+
 
 def convert_bomb_state_to_feature(bomb_state):
     return np.array([bomb_state[0][0], bomb_state[0][1], bomb_state[1]])
 
+
 def convert_coin_state_to_feature(coin_state):
     return np.array([coin_state[0], coin_state[1], -1])
+
+
+def feature_to_entity(order, feature):
+    position = np.array([feature[0], feature[1]])
+    return Entity(order, position, feature[2])
+
 
 def dist(vector_tuple1, vector_tuple2):
     return np.sqrt(np.sum(np.square(np.array(vector_tuple1) + np.array(vector_tuple2))))
