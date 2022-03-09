@@ -6,11 +6,6 @@ from collections import namedtuple
 import numpy as np
 
 from agent_code.__agent.constants import INDICES_BY_ACTION, SAVED_Q_VALUES_FILE_PATH, SAVED_INDICES_BY_STATE_FILE_PATH, ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS
-<<<<<<< HEAD
-=======
-    ACTIONS
-
->>>>>>> a4fcc3b6d7fdd2b498172d3ab9d26978e779d73a
 
 
 def setup(self):
@@ -54,7 +49,7 @@ def state_to_features(game_state: dict) -> np.array:
     :param game_state:  A dictionary describing the current game board.
     :return: np.array
     """
-    return state_to_features_n_closest(game_state)
+    return state_to_features_limited_detection(game_state)
 
     # This is the dict before the game begins and after it ends
     if game_state is None:
@@ -74,11 +69,6 @@ def state_to_features(game_state: dict) -> np.array:
     # and return them as a vector
     return stacked_channels.reshape(-1)
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> a4fcc3b6d7fdd2b498172d3ab9d26978e779d73a
 def state_to_features_limited_detection(game_state: dict) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*

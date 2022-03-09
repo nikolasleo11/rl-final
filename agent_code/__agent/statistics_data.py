@@ -114,7 +114,7 @@ class RoundBasedStatisticsData:
 
             q_value_deltas = np.array([np.array([np.mean(deltas), np.std(deltas)]) for deltas in self.q_value_deltas_per_state if len(deltas) > 0]).T
 
-            plt.errorbar(np.array(range(q_value_deltas.shape[1])), q_value_deltas[0], q_value_deltas[1])
+            plt.errorbar(np.array(range(q_value_deltas.shape[1])), q_value_deltas[0], q_value_deltas[1], fmt='.', ecolor='red', barsabove=True)
             plt.title("Mean q-value changes of states")
             plt.xlabel("Individual states")
             plt.ylabel("Mean change & deviation")

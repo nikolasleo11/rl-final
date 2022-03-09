@@ -15,11 +15,6 @@ from .statistics_data import RoundBasedStatisticsData
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
-# Events
-LEARNING_FACTOR = 0.1
-MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN = 100
-GENERATE_STATISTICS = True
-
 def setup_training(self):
     """
     Initialise self for training purpose.
@@ -56,6 +51,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     #    events.append(PLACEHOLDER_EVENT)
 
     # state_to_features is defined in callbacks.py
+    if old_game_state == None:
+        return
     transition = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
     update_q_values(self, transition)
 
