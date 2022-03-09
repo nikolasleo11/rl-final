@@ -9,7 +9,7 @@ FOLDER_PATH = "saved_plots"
 
 
 class RoundBasedStatisticsData:
-    def __init__(self, agent, amount_x = 100, drop_data_after_saving = True):
+    def __init__(self, agent, expanded_mode=False, amount_x=100, drop_data_after_saving=True):
         self.drop_data_after_saving = drop_data_after_saving
         self.agent = agent
         self.amount_x = amount_x
@@ -18,6 +18,10 @@ class RoundBasedStatisticsData:
         self.total_amount_of_states_per_round = [0]
         self.total_amount_of_moves_per_round = [0]
         self.total_rewards_per_round = [0]
+        self.expanded_mode = expanded_mode
+        if self.expanded_mode:
+            self.total_received_amount_of_states = []
+            self.q_value_deltas_per_state = []
 
     def update_statistics(self, transition):
         is_final_round = transition.next_state is None
@@ -27,6 +31,7 @@ class RoundBasedStatisticsData:
 
         if str(transition.state) not in self.agent.indices_by_state:
             self.total_amount_of_new_states[-1] += 1
+
         if str(transition.next_state) not in self.agent.indices_by_state:
             self.total_amount_of_new_states[-1] += 1
 
@@ -38,7 +43,15 @@ class RoundBasedStatisticsData:
             self.total_amount_of_moves_per_round.append(0)
             self.total_rewards_per_round.append(0)
 
-    def plot(self, show_plot = True, save=False):
+    def update_expanded_statistics(self, index_state, delta):
+        if self.expanded_mode:
+            while index_state > len(self.total_received_amount_of_states) - 1:
+                self.total_received_amount_of_states.append(0)
+                self.q_value_deltas_per_state.append([])
+            self.total_received_amount_of_states[index_state] += 1
+            self.q_value_deltas_per_state[index_state].append(delta)
+
+    def plot(self, show_plot=True, save=False):
         save_path = FOLDER_PATH + "/" + str(int(datetime.utcnow().strftime("%Y%m%d%H%M%S")))
         if save and not os.path.exists(FOLDER_PATH):
             os.makedirs(FOLDER_PATH)
@@ -50,7 +63,8 @@ class RoundBasedStatisticsData:
         total_amount_of_moves_per_round = np.array(self.total_amount_of_moves_per_round)[:x_max]
         total_rewards_per_round = np.array(self.total_rewards_per_round)[:x_max]
 
-        plt.scatter(xs, np.mean((np.array(self.total_amount_of_new_states)[:x_max] / np.array(self.total_amount_of_transitions)[:x_max]).reshape(-1, batch_size), axis=1))
+        plt.scatter(xs, np.mean((np.array(self.total_amount_of_new_states)[:x_max] / np.array(
+            self.total_amount_of_transitions)[:x_max]).reshape(-1, batch_size), axis=1))
         plt.title("Average ratio of new states vs total over time")
         plt.xlabel("* " + str(batch_size) + " Rounds")
         plt.ylabel("Average ratio of new states vs total")
@@ -85,3 +99,37 @@ class RoundBasedStatisticsData:
             plt.savefig(save_path + 'd.png')
         if show_plot:
             plt.show()
+
+        if self.expanded_mode:
+            total_received_amount_of_states = np.array(self.total_received_amount_of_states)
+            total_received_amount_of_states = np.flip(np.sort(total_received_amount_of_states[(total_received_amount_of_states >= 1) & (total_received_amount_of_states <= np.max(total_received_amount_of_states) * 0.9)]))
+            plt.plot(total_received_amount_of_states)
+            plt.title("All states traversed once or more")
+            plt.xlabel("Individual states")
+            plt.ylabel("Amount")
+            if save:
+                plt.savefig(save_path + 'e.png')
+            if show_plot:
+                plt.show()
+
+            q_value_deltas = np.array([np.array([np.mean(deltas), np.std(deltas)]) for deltas in self.q_value_deltas_per_state if len(deltas) > 0]).T
+
+            plt.errorbar(np.array(range(q_value_deltas.shape[1])), q_value_deltas[0], q_value_deltas[1])
+            plt.title("Mean q-value changes of states")
+            plt.xlabel("Individual states")
+            plt.ylabel("Mean change & deviation")
+
+            if save:
+                plt.savefig(save_path + 'f.png')
+            if show_plot:
+                plt.show()
+        if save and self.drop_data_after_saving:
+            self.total_amount_of_new_states = [0]
+            self.total_amount_of_transitions = [0]
+            self.total_amount_of_states_per_round = [0]
+            self.total_amount_of_moves_per_round = [0]
+            self.total_rewards_per_round = [0]
+
+            if self.expanded_mode:
+                self.total_received_amount_of_states = []
+                self.q_value_deltas_per_state = []

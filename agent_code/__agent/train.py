@@ -15,13 +15,9 @@ from .statistics_data import RoundBasedStatisticsData
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
-# Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 3  # keep only ... last transitions
-RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
-
 # Events
 LEARNING_FACTOR = 0.1
-MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN = 1000
+MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN = 100
 GENERATE_STATISTICS = True
 
 def setup_training(self):
@@ -35,7 +31,7 @@ def setup_training(self):
     # Example: Setup an array that will note transition tuples
     # (s, a, r, s')
     if GENERATE_STATISTICS:
-        self.statistics = RoundBasedStatisticsData(self)
+        self.statistics = RoundBasedStatisticsData(self, True)
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -145,5 +141,9 @@ def update_q_values(self, transition):
     index_next_state = self.indices_by_state[str(transition.next_state)]
     index_action = INDICES_BY_ACTION[transition.action]
 
-    self.q_values[index_state, index_action] += LEARNING_FACTOR * (transition.reward + np.max(self.q_values[index_next_state]) - self.q_values[index_state, index_action])
+    delta = LEARNING_FACTOR * (transition.reward + np.max(self.q_values[index_next_state]) - self.q_values[index_state, index_action])
+    self.q_values[index_state, index_action] += delta
+
+    if GENERATE_STATISTICS:
+        self.statistics.update_expanded_statistics(index_state, delta)
 
