@@ -29,10 +29,10 @@ class RoundBasedStatisticsData:
         self.total_amount_of_moves_per_round[-1] += 1
         self.total_amount_of_transitions[-1] += 1
 
-        if str(transition.state) not in self.agent.indices_by_state:
+        if transition.state not in self.agent.indices_by_state:
             self.total_amount_of_new_states[-1] += 1
 
-        if str(transition.next_state) not in self.agent.indices_by_state:
+        if transition.next_state not in self.agent.indices_by_state:
             self.total_amount_of_new_states[-1] += 1
 
         if is_final_round:

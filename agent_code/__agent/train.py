@@ -1,15 +1,11 @@
-from collections import namedtuple, deque
-import matplotlib.pyplot as plt
+from collections import namedtuple
 import pickle
 from typing import List
 from agent_code.__agent.constants import INDICES_BY_ACTION, SAVED_Q_VALUES_FILE_PATH, SAVED_INDICES_BY_STATE_FILE_PATH, \
-    ACTIONS, LEARNING_FACTOR, MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, TRANSITION_HISTORY_SIZE, RECORD_ENEMY_TRANSITIONS
+    ACTIONS, LEARNING_FACTOR, MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS
 import numpy as np
-
 import events as e
 from .callbacks import state_to_features
-
-# This is only an example!
 from .statistics_data import RoundBasedStatisticsData
 
 Transition = namedtuple('Transition',
@@ -117,12 +113,11 @@ def reward_from_events(self, events: List[str]) -> int:
 
 
 def append_state_if_not_covered_yet(self, state):
-    state_str = str(state)
     if len(self.indices_by_state) != self.q_values.shape[0]:
         raise IndexError("The amount of states in the mapping and the q table don't match. "
                          + str(len(self.indices_by_state)) + " vs " + str(self.q_values.shape[0]))
-    if state_str not in self.indices_by_state:
-        self.indices_by_state[state_str] = len(self.indices_by_state) - 1
+    if state not in self.indices_by_state:
+        self.indices_by_state[state] = len(self.indices_by_state) - 1
         self.q_values = np.append(self.q_values, [np.zeros(len(ACTIONS))], axis=0)
 
 
@@ -135,8 +130,8 @@ def update_q_values(self, transition):
     append_state_if_not_covered_yet(self, transition.state)
     append_state_if_not_covered_yet(self, transition.next_state)
 
-    index_state = self.indices_by_state[str(transition.state)]
-    index_next_state = self.indices_by_state[str(transition.next_state)]
+    index_state = self.indices_by_state[transition.state]
+    index_next_state = self.indices_by_state[transition.next_state]
     index_action = INDICES_BY_ACTION[transition.action]
 
     delta = LEARNING_FACTOR * (transition.reward + np.max(self.q_values[index_next_state]) - self.q_values[index_state, index_action])
