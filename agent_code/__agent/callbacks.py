@@ -49,7 +49,7 @@ def state_to_features(game_state: dict) -> np.array:
     :param game_state:  A dictionary describing the current game board.
     :return: np.array
     """
-    return state_to_features_limited_detection(game_state)
+    return state_to_features_custom1(game_state)
 
     # This is the dict before the game begins and after it ends
     if game_state is None:
@@ -64,6 +64,28 @@ def state_to_features(game_state: dict) -> np.array:
         channels.append(convert_bomb_state_to_feature(bomb))
     for coin in game_state['coins']:
         channels.append(convert_coin_state_to_feature(coin))
+    # concatenate them as a feature tensor (they must have the same shape), ...
+    stacked_channels = np.stack(channels)
+    # and return them as a vector
+    return stacked_channels.reshape(-1)
+
+
+def state_to_features_custom1(game_state: dict) -> np.array:
+    if game_state is None:
+        return None
+
+    # For example, you could construct several channels of equal shape, ...
+    channels = []
+    self_position = game_state['self'][3]
+    channels.append(convert_agent_state_to_feature(game_state['self']))
+    #for other in game_state['others']:
+    #    if dist(self_position, other[3]):
+    #        channels.append(convert_agent_state_to_feature(other))
+    for bomb in game_state['bombs']:
+        channels.append(convert_bomb_state_to_feature(bomb))
+    for coin in game_state['coins']:
+        if dist(self_position, coin):
+            channels.append(convert_coin_state_to_feature(coin))
     # concatenate them as a feature tensor (they must have the same shape), ...
     stacked_channels = np.stack(channels)
     # and return them as a vector
