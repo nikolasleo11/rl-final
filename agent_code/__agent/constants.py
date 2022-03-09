@@ -14,3 +14,4 @@ GENERATE_STATISTICS = False
 # Hyper parameters -- DO modify
 TRANSITION_HISTORY_SIZE = 3  # keep only ... last transitions
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
+AMOUNT_ELEMENTS = 5
