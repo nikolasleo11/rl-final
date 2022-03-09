@@ -5,9 +5,7 @@ import random
 import numpy as np
 
 from agent_code.__agent.constants import INDICES_BY_ACTION, SAVED_Q_VALUES_FILE_PATH, SAVED_INDICES_BY_STATE_FILE_PATH, \
-    ACTIONS
-
-EPSILON = 0.0
+    ACTIONS, EPSILON, DETECTION_RADIUS
 
 
 def setup(self):
@@ -71,7 +69,6 @@ def state_to_features(game_state: dict) -> np.array:
     # and return them as a vector
     return stacked_channels.reshape(-1)
 
-DETECTION_RADIUS = 8.1
 def state_to_features_limited_detection(game_state: dict) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*
@@ -95,13 +92,13 @@ def state_to_features_limited_detection(game_state: dict) -> np.array:
     self_position = game_state['self'][3]
     channels.append(convert_agent_state_to_feature(game_state['self']))
     for other in game_state['others']:
-        if dist(self_position, other[3]) <= DETECTION_RADIUS:
+        if dist(self_position, other[3]):
             channels.append(convert_agent_state_to_feature(other))
     for bomb in game_state['bombs']:
-        if dist(self_position, bomb[0]) <= DETECTION_RADIUS:
+        if dist(self_position, bomb[0]):
             channels.append(convert_bomb_state_to_feature(bomb))
     for coin in game_state['coins']:
-        if dist(self_position, coin) <= DETECTION_RADIUS:
+        if dist(self_position, coin):
             channels.append(convert_coin_state_to_feature(coin))
     # concatenate them as a feature tensor (they must have the same shape), ...
     stacked_channels = np.stack(channels)
@@ -118,4 +115,4 @@ def convert_coin_state_to_feature(coin_state):
     return np.array([coin_state[0], coin_state[1], -1])
 
 def dist(vector_tuple1, vector_tuple2):
-    return np.sqrt(np.sum(np.square(np.array(vector_tuple1) + np.array(vector_tuple2))))
+    return np.abs(vector_tuple1[0]-vector_tuple2[0])<= DETECTION_RADIUS and np.abs(vector_tuple1[1]-vector_tuple2[1])<= DETECTION_RADIUS

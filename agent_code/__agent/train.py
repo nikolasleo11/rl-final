@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pickle
 from typing import List
 from agent_code.__agent.constants import INDICES_BY_ACTION, SAVED_Q_VALUES_FILE_PATH, SAVED_INDICES_BY_STATE_FILE_PATH, \
-    ACTIONS
+    ACTIONS, LEARNING_FACTOR, MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, TRANSITION_HISTORY_SIZE, RECORD_ENEMY_TRANSITIONS
 import numpy as np
 
 import events as e
@@ -13,14 +13,6 @@ from .callbacks import state_to_features
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
-# Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 3  # keep only ... last transitions
-RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
-
-# Events
-LEARNING_FACTOR = 0.1
-MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN = 1000
-GENERATE_STATISTICS = False
 
 def setup_training(self):
     """
@@ -117,6 +109,7 @@ def reward_from_events(self, events: List[str]) -> int:
         e.KILLED_SELF: -1000,
         e.OPPONENT_ELIMINATED: 100,
         e.SURVIVED_ROUND: 100,
+        e.BOMB_DROPPED: -500
     }
     reward_sum = 0
     for event in events:
