@@ -5,7 +5,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
-FOLDER_PATH = "saved_plots"
+from agent_code.__agent.constants import DECAY, STATISTICS_PLOTS_FOLDER_PATH
 
 
 class RoundBasedStatisticsData:
@@ -19,6 +19,8 @@ class RoundBasedStatisticsData:
         self.total_amount_of_moves_per_round = [0]
         self.total_rewards_per_round = [0]
         self.expanded_mode = expanded_mode
+        if DECAY:
+            self.epsilons = [self.agent.epsilon]
         if self.expanded_mode:
             self.total_received_amount_of_states = []
             self.q_value_deltas_per_state = []
@@ -51,10 +53,13 @@ class RoundBasedStatisticsData:
             self.total_received_amount_of_states[index_state] += 1
             self.q_value_deltas_per_state[index_state].append(delta)
 
+    def add_epsilon(self, epsilon):
+        self.epsilons.append(epsilon)
+
     def plot(self, show_plot=True, save=False):
-        save_path = FOLDER_PATH + "/" + str(int(datetime.utcnow().strftime("%Y%m%d%H%M%S")))
-        if save and not os.path.exists(FOLDER_PATH):
-            os.makedirs(FOLDER_PATH)
+        save_path = STATISTICS_PLOTS_FOLDER_PATH + "/" + str(int(datetime.utcnow().strftime("%Y%m%d%H%M%S")))
+        if save and not os.path.exists(STATISTICS_PLOTS_FOLDER_PATH):
+            os.makedirs(STATISTICS_PLOTS_FOLDER_PATH)
         amount_x = min(len(self.total_rewards_per_round), self.amount_x)
         batch_size = math.floor(len(self.total_rewards_per_round) / amount_x)
         x_max = (len(self.total_rewards_per_round) - len(self.total_rewards_per_round) % batch_size)
@@ -123,6 +128,16 @@ class RoundBasedStatisticsData:
                 plt.savefig(save_path + 'f.png')
             if show_plot:
                 plt.show()
+        if DECAY:
+            plt.scatter(np.array(range(len(self.epsilons))), self.epsilons)
+            plt.title("Epsilon over time")
+            plt.xlabel("Time")
+            plt.ylabel("Epsilon")
+            if save:
+                plt.savefig(save_path + 'g.png')
+            if show_plot:
+                plt.show()
+
         if save and self.drop_data_after_saving:
             self.total_amount_of_new_states = [0]
             self.total_amount_of_transitions = [0]
@@ -133,3 +148,6 @@ class RoundBasedStatisticsData:
             if self.expanded_mode:
                 self.total_received_amount_of_states = []
                 self.q_value_deltas_per_state = []
+
+            if DECAY:
+                self.epsilons = [self.agent.epsilon]

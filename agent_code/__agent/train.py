@@ -2,7 +2,8 @@ from collections import namedtuple
 import pickle
 from typing import List
 from agent_code.__agent.constants import INDICES_BY_ACTION, SAVED_Q_VALUES_FILE_PATH, SAVED_INDICES_BY_STATE_FILE_PATH, \
-    ACTIONS, LEARNING_FACTOR, MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS
+    ACTIONS, LEARNING_FACTOR, MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, EPSILON_UPDATE_RATE, DECAY, \
+    EPSILON
 import numpy as np
 import events as e
 from .callbacks import state_to_features
@@ -12,17 +13,8 @@ Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
 def setup_training(self):
-    """
-    Initialise self for training purpose.
-
-    This is called after `setup` in callbacks.py.
-
-    :param self: This object is passed to all callbacks and you can set arbitrary values.
-    """
-    # Example: Setup an array that will note transition tuples
-    # (s, a, r, s')
     if GENERATE_STATISTICS:
-        self.statistics = RoundBasedStatisticsData(self, True)
+        self.statistics = RoundBasedStatisticsData(self)
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -50,6 +42,11 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     if old_game_state == None:
         return
     transition = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
+
+    if DECAY:
+        self.new_total_states[1] += 1
+        self.new_total_states[0] += transition.next_state not in self.indices_by_state
+
     update_q_values(self, transition)
 
 
@@ -67,12 +64,17 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     :param self: The same object that is passed to all of your callbacks.
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
+
+    round_number = last_game_state['round']
     transition = Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events))
     update_q_values(self, transition)
-    self.rounds_not_saved += 1
-    # Store the model
-    if self.rounds_not_saved >= MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN:
-        self.rounds_not_saved = 0
+    if DECAY and round_number % EPSILON_UPDATE_RATE == 0:
+        ratio = self.new_total_states[0] / self.new_total_states[1] if self.new_total_states[1] > 0 else 0
+        self.new_total_states = [0, 0]
+        self.epsilon = EPSILON(ratio)
+        if GENERATE_STATISTICS:
+            self.statistics.add_epsilon(self.epsilon)
+    if round_number % MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN == 0:
         with open(SAVED_Q_VALUES_FILE_PATH, "wb") as file:
             pickle.dump(self.q_values, file)
         with open(SAVED_INDICES_BY_STATE_FILE_PATH, "wb") as file:
