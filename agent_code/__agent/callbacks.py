@@ -5,30 +5,51 @@ from collections import namedtuple
 
 import numpy as np
 
-from agent_code.__agent.constants import INDICES_BY_ACTION, SAVED_Q_VALUES_FILE_PATH, SAVED_INDICES_BY_STATE_FILE_PATH, \
-    ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, DECAY
+from agent_code.__agent.constants import \
+    ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, DECAY, BATCH_SIZE, INPUT_SHAPE, MAX_AGENT_COUNT, \
+    MAX_BOMB_COUNT, MAX_COIN_COUNT
+import keras.optimizers
+from keras.models import Sequential
+from keras.layers import Dense, Activation, Flatten, Conv2D
+import tensorflow as tf
+from tensorflow.python.client import device_lib
 
 
 def setup(self):
-    self.q_values = np.zeros((1, len(INDICES_BY_ACTION)))
-    self.indices_by_state = {None: 0}
     # Todo: Refactor this.
+    print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+    print(device_lib.list_local_devices())
     self.rounds_not_saved = 0
     self.statistics = None
     self.epsilon = EPSILON()
+    self.batch_size = BATCH_SIZE
+    self.model = init_model()
     if DECAY:
         self.new_total_states = [0, 0]
-    if os.path.isfile(SAVED_Q_VALUES_FILE_PATH) and os.path.isfile(SAVED_INDICES_BY_STATE_FILE_PATH):
-        with open(SAVED_Q_VALUES_FILE_PATH, "rb") as file:
-            self.q_values = pickle.load(file)
-        with open(SAVED_INDICES_BY_STATE_FILE_PATH, "rb") as file:
-            self.indices_by_state = pickle.load(file)
+
+
+def init_model():
+    model = Sequential()
+
+    model.add(Conv2D(32, (3, 3), padding='same', input_shape=INPUT_SHAPE))
+    model.add(Activation('relu'))
+    model.add(Conv2D(64, (3, 3), padding='same'))
+
+    model.add(Activation('relu'))
+    model.add(Flatten())
+
+    model.add(Dense(128, activation='relu'))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dense(len(ACTIONS), activation='linear'))
+
+    opt = keras.optimizers.sgd_experimental.SGD()
+    model.compile(loss='mse', optimizer=opt)
+    return model
 
 
 def act(self, game_state: dict):
-    features = state_to_features(game_state)
-    is_new = features not in self.indices_by_state
-    if is_new or random.random() < self.epsilon:
+    return np.random.choice(ACTIONS)
+    if random.random() < self.epsilon:
         return np.random.choice(ACTIONS)
     else:
         index_state = self.indices_by_state[str(state_to_features(game_state))]
@@ -37,7 +58,8 @@ def act(self, game_state: dict):
 
 
 def state_to_features(game_state: dict) -> np.array:
-    return state_to_features_custom1(game_state)
+    features = state_to_features_cnn(game_state)
+    return features
 
     if game_state is None:
         return None
@@ -54,6 +76,29 @@ def state_to_features(game_state: dict) -> np.array:
     return str(stacked_channels.reshape(-1))
 
 
+def state_to_features_cnn(game_state: dict) -> np.array:
+    if game_state is None:
+        return np.expand_dims(np.zeros(INPUT_SHAPE), axis=0)
+    agent_features = np.zeros((MAX_AGENT_COUNT, 3))
+    bomb_features = np.zeros((MAX_BOMB_COUNT, 3))
+    coin_features = np.zeros((MAX_COIN_COUNT, 3))
+    index = 0
+    agent_features[index] = convert_agent_state_to_feature(game_state['self'])
+    for other in game_state['others']:
+        agent_features[index] = convert_agent_state_to_feature(other)
+        index += 1
+    index = 0
+    for bomb in game_state['bombs']:
+        bomb_features[index] = convert_bomb_state_to_feature(bomb)
+        index += 1
+    index = 0
+    for coin in game_state['coins']:
+        coin_features[index] = convert_coin_state_to_feature(coin)
+        index += 1
+    stacked_channels = np.concatenate([agent_features, bomb_features, coin_features])
+    return stacked_channels.reshape(-1, INPUT_SHAPE[0], INPUT_SHAPE[1], INPUT_SHAPE[2])
+
+
 def state_to_features_custom1(game_state: dict) -> np.array:
     if game_state is None:
         return None
@@ -61,7 +106,7 @@ def state_to_features_custom1(game_state: dict) -> np.array:
     channels = []
     self_position = game_state['self'][3]
     channels.append(convert_agent_state_to_feature(game_state['self']))
-    #for other in game_state['others']:
+    # for other in game_state['others']:
     #    if dist(self_position, other[3]):
     #        channels.append(convert_agent_state_to_feature(other))
     for bomb in game_state['bombs']:
@@ -140,4 +185,5 @@ def feature_to_entity(order, feature):
 
 
 def dist(vector_tuple1, vector_tuple2):
-    return np.abs(vector_tuple1[0]-vector_tuple2[0])<= DETECTION_RADIUS and np.abs(vector_tuple1[1]-vector_tuple2[1])<= DETECTION_RADIUS
+    return np.abs(vector_tuple1[0] - vector_tuple2[0]) <= DETECTION_RADIUS and np.abs(
+        vector_tuple1[1] - vector_tuple2[1]) <= DETECTION_RADIUS

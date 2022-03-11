@@ -1,11 +1,12 @@
 from collections import namedtuple
 import pickle
 from typing import List
-from agent_code.__agent.constants import INDICES_BY_ACTION, SAVED_Q_VALUES_FILE_PATH, SAVED_INDICES_BY_STATE_FILE_PATH, \
-    ACTIONS, LEARNING_FACTOR, MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, EPSILON_UPDATE_RATE, DECAY, \
-    EPSILON
+from agent_code.__agent.constants import INDICES_BY_ACTION, \
+    MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, EPSILON_UPDATE_RATE, DECAY, \
+    EPSILON, BATCH_SIZE, ACTIONS
 import numpy as np
 import events as e
+import tensorflow as tf
 from .callbacks import state_to_features
 from .statistics_data import RoundBasedStatisticsData
 
@@ -13,6 +14,7 @@ Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
 def setup_training(self):
+    self.transitions = []
     if GENERATE_STATISTICS:
         self.statistics = RoundBasedStatisticsData(self)
 
@@ -47,7 +49,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.new_total_states[1] += 1
         self.new_total_states[0] += transition.next_state not in self.indices_by_state
 
-    update_q_values(self, transition)
+    append_and_train(self, transition)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -66,8 +68,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
     round_number = last_game_state['round']
-    transition = Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events))
-    update_q_values(self, transition)
+    transition = Transition(state_to_features(last_game_state), last_action, state_to_features(None), reward_from_events(self, events))
+    append_and_train(self, transition)
     if DECAY and round_number % EPSILON_UPDATE_RATE == 0:
         ratio = self.new_total_states[0] / self.new_total_states[1] if self.new_total_states[1] > 0 else 0
         self.new_total_states = [0, 0]
@@ -75,14 +77,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         if GENERATE_STATISTICS:
             self.statistics.add_epsilon(self.epsilon)
     if round_number % MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN == 0:
-        with open(SAVED_Q_VALUES_FILE_PATH, "wb") as file:
-            pickle.dump(self.q_values, file)
-        with open(SAVED_INDICES_BY_STATE_FILE_PATH, "wb") as file:
-            pickle.dump(self.indices_by_state, file)
-
         if GENERATE_STATISTICS:
             self.statistics.plot(True, True)
-
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -114,31 +110,21 @@ def reward_from_events(self, events: List[str]) -> int:
     return reward_sum
 
 
-def append_state_if_not_covered_yet(self, state):
-    if len(self.indices_by_state) != self.q_values.shape[0]:
-        raise IndexError("The amount of states in the mapping and the q table don't match. "
-                         + str(len(self.indices_by_state)) + " vs " + str(self.q_values.shape[0]))
-    if state not in self.indices_by_state:
-        self.indices_by_state[state] = len(self.indices_by_state) - 1
-        self.q_values = np.append(self.q_values, [np.zeros(len(ACTIONS))], axis=0)
+def append_and_train(self, transition):
+    self.transitions.append(transition)
 
-
-def update_q_values(self, transition):
-    '''Updates the q-values using the bellman expectancy equation with greedy policy improvement.'''
-
-    if GENERATE_STATISTICS:
-        self.statistics.update_statistics(transition)
-
-    append_state_if_not_covered_yet(self, transition.state)
-    append_state_if_not_covered_yet(self, transition.next_state)
-
-    index_state = self.indices_by_state[transition.state]
-    index_next_state = self.indices_by_state[transition.next_state]
-    index_action = INDICES_BY_ACTION[transition.action]
-
-    delta = LEARNING_FACTOR * (transition.reward + np.max(self.q_values[index_next_state]) - self.q_values[index_state, index_action])
-    self.q_values[index_state, index_action] += delta
-
-    if GENERATE_STATISTICS:
-        self.statistics.update_expanded_statistics(index_state, delta)
+    if len(self.transitions) >= BATCH_SIZE:
+        index = 0
+        X = []
+        y = []
+        for i, transition in enumerate(self.transitions):
+            index_action = INDICES_BY_ACTION[transition.action]
+            q_values_next_state = self.model.predict(transition.next_state)[0]
+            expected_return = transition.reward + np.max(q_values_next_state)
+            q_values_state = self.model.predict(transition.state)[0]
+            q_values_state[index_action] = expected_return
+            X.append(transition.state)
+            y.append(q_values_state)
+        self.model.fit(tf.stack(X), tf.stack(y), epochs=1, verbose=0)
+        self.transitions.clear()
 
