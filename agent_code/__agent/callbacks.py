@@ -14,7 +14,6 @@ from keras.layers import Dense, Activation, Flatten, Conv2D
 import tensorflow as tf
 from tensorflow.python.client import device_lib
 
-
 def setup(self):
     # Todo: Refactor this.
     print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
@@ -22,6 +21,7 @@ def setup(self):
     self.rounds_not_saved = 0
     self.statistics = None
     self.epsilon = EPSILON()
+
     self.batch_size = BATCH_SIZE
     self.model = init_model()
     if DECAY:
