@@ -6,7 +6,7 @@ from collections import namedtuple
 import numpy as np
 
 from agent_code.__agent.constants import INDICES_BY_ACTION, SAVED_Q_VALUES_FILE_PATH, SAVED_INDICES_BY_STATE_FILE_PATH, \
-    ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, DECAY
+    ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS
 
 
 def setup(self):
@@ -16,8 +16,6 @@ def setup(self):
     self.rounds_not_saved = 0
     self.statistics = None
     self.epsilon = EPSILON()
-    if DECAY:
-        self.new_total_states = [0, 0]
     if os.path.isfile(SAVED_Q_VALUES_FILE_PATH) and os.path.isfile(SAVED_INDICES_BY_STATE_FILE_PATH):
         with open(SAVED_Q_VALUES_FILE_PATH, "rb") as file:
             self.q_values = pickle.load(file)

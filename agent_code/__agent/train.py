@@ -43,10 +43,6 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         return
     transition = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
 
-    if DECAY:
-        self.new_total_states[1] += 1
-        self.new_total_states[0] += transition.next_state not in self.indices_by_state
-
     update_q_values(self, transition)
 
 
@@ -69,9 +65,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     transition = Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events))
     update_q_values(self, transition)
     if DECAY and round_number % EPSILON_UPDATE_RATE == 0:
-        ratio = self.new_total_states[0] / self.new_total_states[1] if self.new_total_states[1] > 0 else 0
-        self.new_total_states = [0, 0]
-        self.epsilon = EPSILON(ratio)
+        self.epsilon = EPSILON(self.epsilon)
         if GENERATE_STATISTICS:
             self.statistics.add_epsilon(self.epsilon)
     if round_number % MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN == 0:
@@ -129,15 +123,16 @@ def update_q_values(self, transition):
     if GENERATE_STATISTICS:
         self.statistics.update_statistics(transition)
 
+    is_terminal_state = transition.next_state is None
     append_state_if_not_covered_yet(self, transition.state)
-    append_state_if_not_covered_yet(self, transition.next_state)
+    if not is_terminal_state:
+        append_state_if_not_covered_yet(self, transition.next_state)
 
     index_state = self.indices_by_state[transition.state]
     index_next_state = self.indices_by_state[transition.next_state]
     index_action = INDICES_BY_ACTION[transition.action]
-
-    delta = LEARNING_FACTOR * (transition.reward + np.max(self.q_values[index_next_state]) - self.q_values[index_state, index_action])
-    self.q_values[index_state, index_action] += delta
+    delta = transition.reward + np.max(self.q_values[index_next_state]) - self.q_values[index_state, index_action] if not is_terminal_state else transition.reward
+    self.q_values[index_state, index_action] += LEARNING_FACTOR * delta
 
     if GENERATE_STATISTICS:
         self.statistics.update_expanded_statistics(index_state, delta)
