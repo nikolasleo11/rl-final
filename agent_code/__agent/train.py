@@ -3,7 +3,7 @@ import pickle
 from typing import List
 from agent_code.__agent.constants import INDICES_BY_ACTION, \
     MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, EPSILON_UPDATE_RATE, DECAY, \
-    EPSILON, BATCH_SIZE, ACTIONS
+    EPSILON, BATCH_SIZE, ACTIONS, MAIN_MODEL_FILE_PATH
 import numpy as np
 import events as e
 import tensorflow as tf
@@ -71,6 +71,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         if GENERATE_STATISTICS:
             self.statistics.add_epsilon(self.epsilon)
     if round_number % MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN == 0:
+        self.model.save(MAIN_MODEL_FILE_PATH)
         if GENERATE_STATISTICS:
             self.statistics.plot(True, True)
 
@@ -106,19 +107,20 @@ def reward_from_events(self, events: List[str]) -> int:
   
 def append_and_train(self, transition):
     self.transitions.append(transition)
-
+    is_terminal = transition.next_state is None
     if len(self.transitions) >= BATCH_SIZE:
-        index = 0
         X = []
-        y = []
+        ys = []
         for i, transition in enumerate(self.transitions):
             index_action = INDICES_BY_ACTION[transition.action]
             q_values_next_state = self.model.predict(transition.next_state)[0]
-            expected_return = transition.reward + np.max(q_values_next_state)
+            expected_return = transition.reward + np.max(q_values_next_state) if not is_terminal else transition.reward
             q_values_state = self.model.predict(transition.state)[0]
             q_values_state[index_action] = expected_return
             X.append(transition.state)
-            y.append(q_values_state)
-        self.model.fit(tf.stack(X), tf.stack(y), epochs=1, verbose=0)
+            ys.append(np.array([q_values_state]))
+        for i, x in enumerate(X):
+            y = ys[i]
+            self.model.fit(x, y, epochs=1, verbose=0)
         self.transitions.clear()
 

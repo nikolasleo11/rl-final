@@ -7,7 +7,7 @@ import numpy as np
 
 from agent_code.__agent.constants import \
     ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, DECAY, BATCH_SIZE, INPUT_SHAPE, MAX_AGENT_COUNT, \
-    MAX_BOMB_COUNT, MAX_COIN_COUNT
+    MAX_BOMB_COUNT, MAX_COIN_COUNT, MAIN_MODEL_FILE_PATH
 import keras.optimizers
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Flatten, Conv2D
@@ -24,36 +24,32 @@ def setup(self):
 
     self.batch_size = BATCH_SIZE
     self.model = init_model()
-    if DECAY:
-        self.new_total_states = [0, 0]
 
-
+    if os.path.isfile(MAIN_MODEL_FILE_PATH):
+        self.model = keras.models.load_model(MAIN_MODEL_FILE_PATH)
 def init_model():
     model = Sequential()
 
-    model.add(Conv2D(32, (3, 3), padding='same', input_shape=INPUT_SHAPE))
-    model.add(Activation('relu'))
-    model.add(Conv2D(64, (3, 3), padding='same'))
+    model.add(Conv2D(32, (3, 3), padding='same', activation="relu", input_shape=INPUT_SHAPE))
+    model.add(Conv2D(64, (3, 3), padding='same', activation="relu"))
 
-    model.add(Activation('relu'))
     model.add(Flatten())
 
-    model.add(Dense(128, activation='relu'))
     model.add(Dense(64, activation='relu'))
-    model.add(Dense(len(ACTIONS), activation='linear'))
+    model.add(Dense(len(ACTIONS), activation='softmax'))
 
-    opt = keras.optimizers.sgd_experimental.SGD()
+    opt = tf.keras.optimizers.Adam()
     model.compile(loss='mse', optimizer=opt)
     return model
 
 
 def act(self, game_state: dict):
-    return np.random.choice(ACTIONS)
-    if random.random() < self.epsilon:
+    if random.random() <= self.epsilon:
         return np.random.choice(ACTIONS)
     else:
-        index_state = self.indices_by_state[str(state_to_features(game_state))]
-        index_best_action = np.argmax(self.q_values[index_state])
+        features = state_to_features(game_state)
+        q_values = self.model.predict(features)[0]
+        index_best_action = np.argmax(q_values)
         return ACTIONS[index_best_action]
 
 
