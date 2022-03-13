@@ -10,36 +10,36 @@ from agent_code.__agent.constants import \
     MAX_BOMB_COUNT, MAX_COIN_COUNT, MAIN_MODEL_FILE_PATH
 import keras.optimizers
 from keras.models import Sequential
-from keras.layers import Dense, Activation, Flatten, Conv2D
+from keras.layers import Dense, LeakyReLU, Flatten, Conv2D, MaxPooling2D
 import tensorflow as tf
 from tensorflow.python.client import device_lib
 
 
 def setup(self):
-    # Todo: Refactor this.
     print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
     print(device_lib.list_local_devices())
-    self.rounds_not_saved = 0
     self.statistics = None
     self.epsilon = EPSILON()
-
     self.batch_size = BATCH_SIZE
     self.model = init_model()
 
-    if os.path.isfile(MAIN_MODEL_FILE_PATH):
+    if os.path.isdir(MAIN_MODEL_FILE_PATH):
         self.model = keras.models.load_model(MAIN_MODEL_FILE_PATH)
+
+
+class Activation:
+    pass
 
 
 def init_model():
     model = Sequential()
-
-    model.add(Conv2D(32, (3, 3), padding='same', activation="relu", input_shape=INPUT_SHAPE))
-    model.add(Conv2D(64, (3, 3), padding='same', activation="relu"))
+    model.add(Conv2D(16, (3, 3), padding='same', activation="relu", input_shape=INPUT_SHAPE))
+    model.add(Conv2D(32, (3, 3), padding='same', activation="relu"))
 
     model.add(Flatten())
 
-    model.add(Dense(64, activation='relu'))
-    model.add(Dense(len(ACTIONS), activation='softmax'))
+    model.add(Dense(32, activation='relu'))
+    model.add(Dense(len(ACTIONS), activation='linear'))
 
     opt = tf.keras.optimizers.Adam()
     model.compile(loss='mse', optimizer=opt)
@@ -50,7 +50,7 @@ def act(self, game_state: dict):
     if random.random() <= self.epsilon:
         return np.random.choice(ACTIONS)
     else:
-        features = state_to_features(game_state)
+        features = np.expand_dims(state_to_features(game_state), axis=0)
         q_values = self.model.predict(features)[0]
         index_best_action = np.argmax(q_values)
         return ACTIONS[index_best_action]
@@ -77,7 +77,7 @@ def state_to_features(game_state: dict) -> np.array:
 
 def state_to_features_cnn(game_state: dict) -> np.array:
     if game_state is None:
-        return np.expand_dims(np.zeros(INPUT_SHAPE), axis=0)
+        return np.zeros(INPUT_SHAPE)
     agent_features = np.zeros((MAX_AGENT_COUNT, 3))
     bomb_features = np.zeros((MAX_BOMB_COUNT, 3))
     coin_features = np.zeros((MAX_COIN_COUNT, 3))
@@ -98,7 +98,7 @@ def state_to_features_cnn(game_state: dict) -> np.array:
         coin_features[index] = convert_coin_state_to_feature(coin)
         index += 1
     stacked_channels = np.concatenate([agent_features, bomb_features, coin_features])
-    return stacked_channels.reshape(-1, INPUT_SHAPE[0], INPUT_SHAPE[1], INPUT_SHAPE[2])
+    return stacked_channels.reshape(INPUT_SHAPE)
 
 
 def state_to_features_custom1(game_state: dict) -> np.array:
