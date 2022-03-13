@@ -104,7 +104,7 @@ def reward_from_events(self, events: List[str]) -> int:
     if reward_sum == 0:
         reward_sum = -1
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
-        
+
     return reward_sum
 
   
