@@ -77,7 +77,7 @@ class RoundBasedStatisticsData:
             plt.savefig(save_path + 'a.png')
         if show_plot:
             plt.show()
-
+        plt.clf()
         plt.scatter(xs, np.mean(total_amount_of_states_per_round.reshape(-1, batch_size), axis=1))
         plt.title("Average amount of discovered states over time")
         plt.xlabel("* " + str(batch_size) + " Rounds")
@@ -86,7 +86,7 @@ class RoundBasedStatisticsData:
             plt.savefig(save_path + 'b.png')
         if show_plot:
             plt.show()
-
+        plt.clf()
         plt.scatter(xs, np.mean(total_amount_of_moves_per_round.reshape(-1, batch_size), axis=1))
         plt.title("Average amount of moves per round over time")
         plt.xlabel("* " + str(batch_size) + " Rounds")
@@ -95,7 +95,7 @@ class RoundBasedStatisticsData:
             plt.savefig(save_path + 'c.png')
         if show_plot:
             plt.show()
-
+        plt.clf()
         plt.scatter(xs, np.mean(total_rewards_per_round.reshape(-1, batch_size), axis=1))
         plt.title("Returns over time")
         plt.xlabel("* " + str(batch_size) + " Rounds")
@@ -104,7 +104,7 @@ class RoundBasedStatisticsData:
             plt.savefig(save_path + 'd.png')
         if show_plot:
             plt.show()
-
+        plt.clf()
         if self.expanded_mode:
             total_received_amount_of_states = np.array(self.total_received_amount_of_states)
             total_received_amount_of_states = np.flip(np.sort(total_received_amount_of_states[(total_received_amount_of_states >= 1) & (total_received_amount_of_states <= np.max(total_received_amount_of_states) * 0.9)]))
@@ -116,7 +116,7 @@ class RoundBasedStatisticsData:
                 plt.savefig(save_path + 'e.png')
             if show_plot:
                 plt.show()
-
+            plt.clf()
             q_value_deltas = np.array([np.array([np.mean(deltas), np.std(deltas)]) for deltas in self.q_value_deltas_per_state if len(deltas) > 0]).T
 
             plt.errorbar(np.array(range(q_value_deltas.shape[1])), q_value_deltas[0], q_value_deltas[1], fmt='.', ecolor='red', barsabove=True)
@@ -128,6 +128,7 @@ class RoundBasedStatisticsData:
                 plt.savefig(save_path + 'f.png')
             if show_plot:
                 plt.show()
+            plt.clf()
         if DECAY:
             plt.scatter(np.array(range(len(self.epsilons))), self.epsilons)
             plt.title("Epsilon over time")
@@ -137,7 +138,7 @@ class RoundBasedStatisticsData:
                 plt.savefig(save_path + 'g.png')
             if show_plot:
                 plt.show()
-
+        plt.clf()
         if save and self.drop_data_after_saving:
             self.total_amount_of_new_states = [0]
             self.total_amount_of_transitions = [0]
@@ -203,7 +204,7 @@ class NeuralNetworkData:
             plt.savefig(save_path + 'z.png')
         if PLOT:
             plt.show()
-
+        plt.clf()
         plt.scatter(xs, np.mean(np.array(amount_transitions_per_round).reshape(-1, batch_size), axis=1))
         plt.title("Average amount of moves per round over time")
         plt.xlabel("* " + str(batch_size) + " Rounds")
@@ -212,7 +213,7 @@ class NeuralNetworkData:
             plt.savefig(save_path + 'y.png')
         if PLOT:
             plt.show()
-
+        plt.clf()
         plt.scatter(xs, np.mean(np.array(score_per_round).reshape(-1, batch_size), axis=1))
         plt.title("Average score over time")
         plt.xlabel("* " + str(batch_size) + " Rounds")
@@ -221,16 +222,16 @@ class NeuralNetworkData:
             plt.savefig(save_path + 'x.png')
         if PLOT:
             plt.show()
-
+        plt.clf()
         plt.scatter(np.array(range(len(self.losses))), self.losses)
-        plt.title("Epsilon over time")
+        plt.title("Losses over time")
         plt.xlabel("Time")
-        plt.ylabel("Epsilon")
+        plt.ylabel("Training Loss")
         if SAVE_PLOTS:
             plt.savefig(save_path + 'w.png')
         if PLOT:
             plt.show()
-
+        plt.clf()
         if DECAY:
             plt.scatter(np.array(range(len(self.epsilons))), self.epsilons)
             plt.title("Epsilon over time")
@@ -240,3 +241,4 @@ class NeuralNetworkData:
                 plt.savefig(save_path + 'v.png')
             if PLOT:
                 plt.show()
+            plt.clf()
