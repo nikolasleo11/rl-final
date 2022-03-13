@@ -6,7 +6,7 @@ import keras.callbacks
 
 from agent_code.__agent.constants import INDICES_BY_ACTION, \
     MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, EPSILON_UPDATE_RATE, DECAY, \
-    EPSILON, BATCH_SIZE, ACTIONS, MAIN_MODEL_FILE_PATH, DISCOUNT, ROUNDS_TO_PLOT, NEUTRAL_REWARD
+    EPSILON, BATCH_SIZE, ACTIONS, MAIN_MODEL_FILE_PATH, DISCOUNT, ROUNDS_TO_PLOT, NEUTRAL_REWARD, MIN_FRACTION
 import numpy as np
 import events as e
 import tensorflow as tf
@@ -113,7 +113,7 @@ def append_and_train(self, transition):
     is_terminal = transition.next_state is None
     if GENERATE_STATISTICS:
         self.statistics.update_transition_statistics(transition.reward)
-    balanced_batch = get_balanced_batch(self.transitions)
+    balanced_batch = get_balanced_batch_if_possible(self.transitions)
     if len(balanced_batch) >= BATCH_SIZE:
         X = []
         ys = []
@@ -133,15 +133,23 @@ def append_and_train(self, transition):
             self.statistics.update_model_statistics(history.history['loss'][0])
 
 
-def get_balanced_batch(transitions):
+def get_balanced_batch_if_possible(transitions):
+    if len(transitions) < BATCH_SIZE:
+        return np.empty(0)
     positive_transitions = [transition for transition in transitions if transition.reward > NEUTRAL_REWARD]
     neutral_transitions = [transition for transition in transitions if transition.reward == NEUTRAL_REWARD]
     negative_transitions = [transition for transition in transitions if transition.reward < NEUTRAL_REWARD]
-    minimum = np.min([len(positive_transitions), len(neutral_transitions), len(negative_transitions)]) - 1
-    if minimum < 1:
+    minimum = np.min([len(positive_transitions), len(neutral_transitions), len(negative_transitions)])
+    if minimum < MIN_FRACTION * BATCH_SIZE:
         return np.empty(0)
     np.random.shuffle(positive_transitions)
     np.random.shuffle(neutral_transitions)
     np.random.shuffle(negative_transitions)
-    return positive_transitions[:minimum] + neutral_transitions[:minimum] + negative_transitions[:minimum]
+    transition_groups = [positive_transitions, neutral_transitions, negative_transitions]
+    transition_groups = sorted(transition_groups, key=lambda x: len(x), reverse=False)
+    remaining_size = BATCH_SIZE - minimum
+    size0 = minimum
+    size1 = min(round(remaining_size / 2), len(transition_groups[1]))
+    size2 = BATCH_SIZE - size0 - size1
+    return transition_groups[0][:size1] + transition_groups[1][:size1] + transition_groups[2][:size2]
 
