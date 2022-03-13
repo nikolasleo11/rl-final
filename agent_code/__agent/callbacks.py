@@ -28,17 +28,15 @@ def setup(self):
         self.model = keras.models.load_model(MAIN_MODEL_FILE_PATH)
 
 
-class Activation:
-    pass
-
-
 def init_model():
     model = Sequential()
-    model.add(Conv2D(16, (3, 3), padding='same', activation="relu", input_shape=INPUT_SHAPE))
-    model.add(Conv2D(32, (3, 3), padding='same', activation="relu"))
+    model.add(Conv2D(32, (7, 7), padding='same', activation="relu", input_shape=INPUT_SHAPE))
+    model.add(Conv2D(64, (5, 5), padding='same', activation="relu"))
+    model.add(Conv2D(64, (3, 3), padding='same', activation="relu"))
 
     model.add(Flatten())
 
+    model.add(Dense(128, activation='relu'))
     model.add(Dense(32, activation='relu'))
     model.add(Dense(len(ACTIONS), activation='linear'))
 
