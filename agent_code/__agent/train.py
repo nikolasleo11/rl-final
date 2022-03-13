@@ -1,14 +1,17 @@
 from collections import namedtuple
 import pickle
 from typing import List
+
+import keras.callbacks
+
 from agent_code.__agent.constants import INDICES_BY_ACTION, \
     MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, EPSILON_UPDATE_RATE, DECAY, \
-    EPSILON, BATCH_SIZE, ACTIONS, MAIN_MODEL_FILE_PATH
+    EPSILON, BATCH_SIZE, ACTIONS, MAIN_MODEL_FILE_PATH, DISCOUNT, ROUNDS_TO_PLOT
 import numpy as np
 import events as e
 import tensorflow as tf
 from .callbacks import state_to_features
-from .statistics_data import RoundBasedStatisticsData
+from .statistics_data import RoundBasedStatisticsData, NeuralNetworkData
 
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
@@ -16,7 +19,7 @@ Transition = namedtuple('Transition',
 def setup_training(self):
     self.transitions = []
     if GENERATE_STATISTICS:
-        self.statistics = RoundBasedStatisticsData(self)
+        self.statistics = NeuralNetworkData()
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -72,8 +75,10 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             self.statistics.add_epsilon(self.epsilon)
     if round_number % MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN == 0:
         self.model.save(MAIN_MODEL_FILE_PATH)
-        if GENERATE_STATISTICS:
-            self.statistics.plot(True, True)
+    if GENERATE_STATISTICS:
+        self.statistics.update_round_statistics(0)
+        if round_number % ROUNDS_TO_PLOT == 0:
+            self.statistics.plot()
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -84,23 +89,21 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 100,
-        e.KILLED_OPPONENT: 500,
-        e.INVALID_ACTION: -20,
-        e.COIN_FOUND: 20,
+        e.COIN_COLLECTED: 10,
+        e.KILLED_OPPONENT: 50,
+        e.INVALID_ACTION: -100,
+        e.COIN_FOUND: 2,
         e.GOT_KILLED: -50,
-        e.KILLED_SELF: -1000,
-        e.OPPONENT_ELIMINATED: 100,
-        e.SURVIVED_ROUND: 100,
-        e.BOMB_DROPPED: -500
+        e.KILLED_SELF: -100,
+        e.SURVIVED_ROUND: 100
     }
     reward_sum = 0
     for event in events:
         if event in game_rewards:
             reward_sum += game_rewards[event]
-    self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
     if reward_sum == 0:
         reward_sum = -1
+    self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
         
     return reward_sum
 
@@ -108,19 +111,23 @@ def reward_from_events(self, events: List[str]) -> int:
 def append_and_train(self, transition):
     self.transitions.append(transition)
     is_terminal = transition.next_state is None
+    if GENERATE_STATISTICS:
+        self.statistics.update_transition_statistics(transition.reward)
     if len(self.transitions) >= BATCH_SIZE:
         X = []
         ys = []
         for i, transition in enumerate(self.transitions):
             index_action = INDICES_BY_ACTION[transition.action]
-            q_values_next_state = self.model.predict(transition.next_state)[0]
-            expected_return = transition.reward + np.max(q_values_next_state) if not is_terminal else transition.reward
-            q_values_state = self.model.predict(transition.state)[0]
+            q_values_next_state = self.model.predict(np.expand_dims(transition.next_state, axis=0))[0]
+            expected_return = transition.reward + DISCOUNT * np.max(q_values_next_state) if not is_terminal else transition.reward
+            q_values_state = self.model.predict(np.expand_dims(transition.state, axis=0))[0]
             q_values_state[index_action] = expected_return
             X.append(transition.state)
-            ys.append(np.array([q_values_state]))
-        for i, x in enumerate(X):
-            y = ys[i]
-            self.model.fit(x, y, epochs=1, verbose=0)
+            ys.append(q_values_state)
+        history = keras.callbacks.History()
+        self.model.fit(np.array(X), np.array(ys), batch_size=BATCH_SIZE, verbose=1, callbacks=[history])
         self.transitions.clear()
+
+        if GENERATE_STATISTICS:
+            self.statistics.update_model_statistics(history.history['loss'][0])
 
