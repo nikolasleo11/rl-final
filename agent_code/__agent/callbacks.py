@@ -172,13 +172,13 @@ def state_to_features_n_closest(game_state: dict) -> np.array:
 def sort_others_consistently(others: np.array) -> np.array:
     coordinates = np.array([other[3] for other in others], dtype=(np.dtype([('x', int), ('y', int)])))
     sorted_indices = np.argsort(coordinates, order=('x', 'y'))
-    return [others[i][3] for i in sorted_indices]
+    return [others[i] for i in sorted_indices]
 
 
 def sort_bombs_consistently(bombs: np.array) -> np.array:
     coordinates = np.array([bomb[0] for bomb in bombs], dtype=(np.dtype([('x', int), ('y', int)])))
     sorted_indices = np.argsort(coordinates, order=('x', 'y'))
-    return [bombs[i][0] for i in sorted_indices]
+    return [bombs[i] for i in sorted_indices]
 
 
 def sort_coins_consistently(coins: np.array) -> np.array:
