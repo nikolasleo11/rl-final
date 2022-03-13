@@ -49,10 +49,10 @@ def act(self, game_state: dict):
     if random.random() <= self.epsilon:
         return np.random.choice(ACTIONS)
     else:
-        #features = np.expand_dims(state_to_features(game_state), axis=0)
-        #q_values = self.model.predict(features)[0]
-        #index_best_action = np.argmax(q_values)
-        return rule_based_agent.callbacks.act(self, game_state)
+        features = np.expand_dims(state_to_features(game_state), axis=0)
+        q_values = self.model.predict(features)[0]
+        index_best_action = np.argmax(q_values)
+        return ACTIONS[index_best_action]
 
 
 def state_to_features(game_state: dict) -> np.array:

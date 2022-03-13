@@ -6,7 +6,7 @@ import keras.callbacks
 
 from agent_code.__agent.constants import INDICES_BY_ACTION, \
     MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, EPSILON_UPDATE_RATE, DECAY, \
-    EPSILON, BATCH_SIZE, ACTIONS, MAIN_MODEL_FILE_PATH, DISCOUNT, ROUNDS_TO_PLOT
+    EPSILON, BATCH_SIZE, ACTIONS, MAIN_MODEL_FILE_PATH, DISCOUNT, ROUNDS_TO_PLOT, NEUTRAL_REWARD
 import numpy as np
 import events as e
 import tensorflow as tf
@@ -102,7 +102,7 @@ def reward_from_events(self, events: List[str]) -> int:
         if event in game_rewards:
             reward_sum += game_rewards[event]
     if reward_sum == 0:
-        reward_sum = -1
+        reward_sum = NEUTRAL_REWARD
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
 
     return reward_sum
@@ -113,10 +113,11 @@ def append_and_train(self, transition):
     is_terminal = transition.next_state is None
     if GENERATE_STATISTICS:
         self.statistics.update_transition_statistics(transition.reward)
-    if len(self.transitions) >= BATCH_SIZE:
+    balanced_batch = get_balanced_batch(self.transitions)
+    if len(balanced_batch) >= BATCH_SIZE:
         X = []
         ys = []
-        for i, transition in enumerate(self.transitions):
+        for i, transition in enumerate(balanced_batch):
             index_action = INDICES_BY_ACTION[transition.action]
             q_values_next_state = self.model.predict(np.expand_dims(transition.next_state, axis=0))[0]
             expected_return = transition.reward + DISCOUNT * np.max(q_values_next_state) if not is_terminal else transition.reward
@@ -130,4 +131,17 @@ def append_and_train(self, transition):
 
         if GENERATE_STATISTICS:
             self.statistics.update_model_statistics(history.history['loss'][0])
+
+
+def get_balanced_batch(transitions):
+    positive_transitions = [transition for transition in transitions if transition.reward > NEUTRAL_REWARD]
+    neutral_transitions = [transition for transition in transitions if transition.reward == NEUTRAL_REWARD]
+    negative_transitions = [transition for transition in transitions if transition.reward < NEUTRAL_REWARD]
+    minimum = np.min([len(positive_transitions), len(neutral_transitions), len(negative_transitions)]) - 1
+    if minimum < 1:
+        return np.empty(0)
+    np.random.shuffle(positive_transitions)
+    np.random.shuffle(neutral_transitions)
+    np.random.shuffle(negative_transitions)
+    return positive_transitions[:minimum] + neutral_transitions[:minimum] + negative_transitions[:minimum]
 
