@@ -14,6 +14,7 @@ from keras.layers import Dense, Activation, Flatten, Conv2D
 import tensorflow as tf
 from tensorflow.python.client import device_lib
 
+
 def setup(self):
     # Todo: Refactor this.
     print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
@@ -27,6 +28,8 @@ def setup(self):
 
     if os.path.isfile(MAIN_MODEL_FILE_PATH):
         self.model = keras.models.load_model(MAIN_MODEL_FILE_PATH)
+
+
 def init_model():
     model = Sequential()
 
@@ -80,15 +83,18 @@ def state_to_features_cnn(game_state: dict) -> np.array:
     coin_features = np.zeros((MAX_COIN_COUNT, 3))
     index = 0
     agent_features[index] = convert_agent_state_to_feature(game_state['self'])
-    for other in game_state['others']:
+    others_sorted = sort_others_consistently(game_state['others'])
+    bombs_sorted = sort_bombs_consistently(game_state['bombs'])
+    coins_sorted = sort_coins_consistently(game_state['coins'])
+    for other in others_sorted:
         agent_features[index] = convert_agent_state_to_feature(other)
         index += 1
     index = 0
-    for bomb in game_state['bombs']:
+    for bomb in bombs_sorted:
         bomb_features[index] = convert_bomb_state_to_feature(bomb)
         index += 1
     index = 0
-    for coin in game_state['coins']:
+    for coin in coins_sorted:
         coin_features[index] = convert_coin_state_to_feature(coin)
         index += 1
     stacked_channels = np.concatenate([agent_features, bomb_features, coin_features])
@@ -161,6 +167,24 @@ def state_to_features_n_closest(game_state: dict) -> np.array:
         channels.append(np.array([entity.position[0], entity.position[1], entity.extra_value]))
     stacked_channels = np.stack(channels)
     return str(stacked_channels.reshape(-1))
+
+
+def sort_others_consistently(others: np.array) -> np.array:
+    coordinates = np.array([other[3] for other in others], dtype=(np.dtype([('x', int), ('y', int)])))
+    sorted_indices = np.argsort(coordinates, order=('x', 'y'))
+    return [others[i][3] for i in sorted_indices]
+
+
+def sort_bombs_consistently(bombs: np.array) -> np.array:
+    coordinates = np.array([bomb[0] for bomb in bombs], dtype=(np.dtype([('x', int), ('y', int)])))
+    sorted_indices = np.argsort(coordinates, order=('x', 'y'))
+    return [bombs[i][0] for i in sorted_indices]
+
+
+def sort_coins_consistently(coins: np.array) -> np.array:
+    coordinates = np.array(coins, dtype=(np.dtype([('x', int), ('y', int)])))
+    sorted_indices = np.argsort(coordinates, order=('x', 'y'))
+    return [coins[i] for i in sorted_indices]
 
 
 def convert_agent_state_to_feature(agent_state):

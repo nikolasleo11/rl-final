@@ -92,7 +92,6 @@ def reward_from_events(self, events: List[str]) -> int:
         e.KILLED_SELF: -1000,
         e.OPPONENT_ELIMINATED: 100,
         e.SURVIVED_ROUND: 100,
-        e.BOMB_DROPPED: -500
     }
     reward_sum = 0
     for event in events:
