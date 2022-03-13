@@ -8,6 +8,7 @@ import numpy as np
 from agent_code.__agent.constants import \
     ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, DECAY, BATCH_SIZE, INPUT_SHAPE, MAX_AGENT_COUNT, \
     MAX_BOMB_COUNT, MAX_COIN_COUNT, MAIN_MODEL_FILE_PATH
+from agent_code import rule_based_agent
 import keras.optimizers
 from keras.models import Sequential
 from keras.layers import Dense, LeakyReLU, Flatten, Conv2D, MaxPooling2D
@@ -50,10 +51,10 @@ def act(self, game_state: dict):
     if random.random() <= self.epsilon:
         return np.random.choice(ACTIONS)
     else:
-        features = np.expand_dims(state_to_features(game_state), axis=0)
-        q_values = self.model.predict(features)[0]
-        index_best_action = np.argmax(q_values)
-        return ACTIONS[index_best_action]
+        #features = np.expand_dims(state_to_features(game_state), axis=0)
+        #q_values = self.model.predict(features)[0]
+        #index_best_action = np.argmax(q_values)
+        return rule_based_agent.callbacks.act(self, game_state)
 
 
 def state_to_features(game_state: dict) -> np.array:
