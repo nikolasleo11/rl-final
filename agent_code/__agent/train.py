@@ -89,8 +89,8 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 10,
-        e.KILLED_OPPONENT: 50,
+        e.COIN_COLLECTED: 100,
+        e.KILLED_OPPONENT: 500,
         e.INVALID_ACTION: -100,
         e.COIN_FOUND: 2,
         e.GOT_KILLED: -50,
@@ -151,5 +151,7 @@ def get_balanced_batch_if_possible(transitions):
     size0 = minimum
     size1 = min(round(remaining_size / 2), len(transition_groups[1]))
     size2 = BATCH_SIZE - size0 - size1
-    return transition_groups[0][:size1] + transition_groups[1][:size1] + transition_groups[2][:size2]
+    returned = transition_groups[0][:size1] + transition_groups[1][:size1] + transition_groups[2][:size2]
+    np.random.shuffle(returned)
+    return returned
 
