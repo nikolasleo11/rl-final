@@ -7,7 +7,7 @@ import numpy as np
 
 from agent_code.__agent.constants import \
     ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, DECAY, BATCH_SIZE, INPUT_SHAPE, MAX_AGENT_COUNT, \
-    MAX_BOMB_COUNT, MAX_COIN_COUNT, MAIN_MODEL_FILE_PATH
+    MAX_BOMB_COUNT, MAX_COIN_COUNT,MAX_CRATE_COUNT, MAX_EXPLOSION_COUNT, MAIN_MODEL_FILE_PATH
 from agent_code import rule_based_agent
 import keras.optimizers
 from keras.models import Sequential
@@ -80,11 +80,15 @@ def state_to_features_cnn(game_state: dict) -> np.array:
     agent_features = np.zeros((MAX_AGENT_COUNT, 3))
     bomb_features = np.zeros((MAX_BOMB_COUNT, 3))
     coin_features = np.zeros((MAX_COIN_COUNT, 3))
+    crate_features = np.zeros((MAX_CRATE_COUNT, 3))
+    explosion_features = np.zeros((MAX_EXPLOSION_COUNT, 3))
     index = 0
     agent_features[index] = convert_agent_state_to_feature(game_state['self'])
     others_sorted = sort_others_consistently(game_state['others'])
     bombs_sorted = sort_bombs_consistently(game_state['bombs'])
     coins_sorted = sort_coins_consistently(game_state['coins'])
+    crates_sorted = np.argwhere(game_state['field'] == 1)
+    explosions_sorted = np.argwhere(game_state['explosion_map'] > 0)
     for other in others_sorted:
         agent_features[index] = convert_agent_state_to_feature(other)
         index += 1
@@ -96,7 +100,16 @@ def state_to_features_cnn(game_state: dict) -> np.array:
     for coin in coins_sorted:
         coin_features[index] = convert_coin_state_to_feature(coin)
         index += 1
-    stacked_channels = np.concatenate([agent_features, bomb_features, coin_features])
+    index = 0
+    for crate in crates_sorted:
+        crate_features[index] = convert_crate_state_to_feature(crate)
+        index += 1
+    index = 0
+    for explosion in explosions_sorted:
+        explosion_features[index] = convert_explosion_state_to_feature(explosion, game_state['explosion_map'][explosion[0]][explosion[1]])
+        index += 1
+
+    stacked_channels = np.concatenate([agent_features, bomb_features, coin_features, crate_features, explosion_features])
     return stacked_channels.reshape(INPUT_SHAPE)
 
 
@@ -196,6 +209,14 @@ def convert_bomb_state_to_feature(bomb_state):
 
 def convert_coin_state_to_feature(coin_state):
     return np.array([coin_state[0], coin_state[1], -1])
+
+
+def convert_crate_state_to_feature(crate_state):
+    return np.array([crate_state[0], crate_state[1], -1])
+
+
+def convert_explosion_state_to_feature(explosion_coordinate, explosion_duration):
+    return np.array([explosion_coordinate[0], explosion_coordinate[1]], explosion_duration)
 
 
 def feature_to_entity(order, feature):
