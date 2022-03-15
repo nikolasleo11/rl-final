@@ -6,7 +6,8 @@ import keras.callbacks
 
 from agent_code.__agent.constants import INDICES_BY_ACTION, \
     MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, EPSILON_UPDATE_RATE, DECAY, \
-    EPSILON, BATCH_SIZE, ACTIONS, MAIN_MODEL_FILE_PATH, DISCOUNT, ROUNDS_TO_PLOT, NEUTRAL_REWARD, MIN_FRACTION
+    EPSILON, BATCH_SIZE, ACTIONS, MAIN_MODEL_FILE_PATH, DISCOUNT, ROUNDS_TO_PLOT, NEUTRAL_REWARD, MIN_FRACTION, \
+    TARGET_MODEL_UPDATE_RATE
 import numpy as np
 import events as e
 import tensorflow as tf
@@ -119,7 +120,7 @@ def append_and_train(self, transition):
         ys = []
         for i, transition in enumerate(balanced_batch):
             index_action = INDICES_BY_ACTION[transition.action]
-            q_values_next_state = self.model.predict(np.expand_dims(transition.next_state, axis=0))[0]
+            q_values_next_state = self.target_model.predict(np.expand_dims(transition.next_state, axis=0))[0]
             expected_return = transition.reward + DISCOUNT * np.max(q_values_next_state) if not is_terminal else transition.reward
             q_values_state = self.model.predict(np.expand_dims(transition.state, axis=0))[0]
             q_values_state[index_action] = expected_return
@@ -131,7 +132,9 @@ def append_and_train(self, transition):
 
         if GENERATE_STATISTICS:
             self.statistics.update_model_statistics(history.history['loss'][0])
-
+        self.model_updates += 1
+        if self.model_updates % TARGET_MODEL_UPDATE_RATE == 0:
+            self.target_model.set_weights(self.model.get_weights())
 
 def get_balanced_batch_if_possible(transitions):
     if len(transitions) < BATCH_SIZE:

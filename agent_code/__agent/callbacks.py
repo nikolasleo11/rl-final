@@ -10,7 +10,7 @@ from agent_code.__agent.constants import \
     MAX_BOMB_COUNT, MAX_COIN_COUNT,MAX_CRATE_COUNT, MAX_EXPLOSION_COUNT, MAIN_MODEL_FILE_PATH
 from agent_code import rule_based_agent
 import keras.optimizers
-from keras.models import Sequential
+from keras.models import Sequential, clone_model
 from keras.layers import Dense, LeakyReLU, Flatten, Conv2D, MaxPooling2D
 import tensorflow as tf
 from tensorflow.python.client import device_lib
@@ -26,6 +26,11 @@ def setup(self):
 
     if os.path.isdir(MAIN_MODEL_FILE_PATH):
         self.model = keras.models.load_model(MAIN_MODEL_FILE_PATH)
+
+    if self.train:
+        self.target_model = clone_model(self.model)
+        self.model_updates = 0
+        self.target_model.set_weights(self.model.get_weights())
 
 
 def init_model():
@@ -216,7 +221,7 @@ def convert_crate_state_to_feature(crate_state):
 
 
 def convert_explosion_state_to_feature(explosion_coordinate, explosion_duration):
-    return np.array([explosion_coordinate[0], explosion_coordinate[1]], explosion_duration)
+    return np.array([explosion_coordinate[0], explosion_coordinate[1], explosion_duration])
 
 
 def feature_to_entity(order, feature):
