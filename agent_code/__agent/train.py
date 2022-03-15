@@ -7,7 +7,7 @@ import keras.callbacks
 from agent_code.__agent.constants import INDICES_BY_ACTION, \
     MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, EPSILON_UPDATE_RATE, DECAY, \
     EPSILON, BATCH_SIZE, ACTIONS, MAIN_MODEL_FILE_PATH, DISCOUNT, ROUNDS_TO_PLOT, NEUTRAL_REWARD, MIN_FRACTION, \
-    TARGET_MODEL_UPDATE_RATE
+    TARGET_MODEL_UPDATE_RATE, TRAINING_DATA_MODE, MEMORY_SIZE
 import numpy as np
 import events as e
 import tensorflow as tf
@@ -17,10 +17,12 @@ from .statistics_data import RoundBasedStatisticsData, NeuralNetworkData
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
+
 def setup_training(self):
     self.transitions = []
     if GENERATE_STATISTICS:
         self.statistics = NeuralNetworkData()
+
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -41,13 +43,14 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
     # Idea: Add your own events to hand out rewards
-    #if ...:
+    # if ...:
     #    events.append(PLACEHOLDER_EVENT)
 
     # state_to_features is defined in callbacks.py
     if old_game_state == None:
         return
-    transition = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
+    transition = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state),
+                            reward_from_events(self, events))
 
     append_and_train(self, transition)
 
@@ -68,7 +71,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
     round_number = last_game_state['round']
-    transition = Transition(state_to_features(last_game_state), last_action, state_to_features(None), reward_from_events(self, events))
+    transition = Transition(state_to_features(last_game_state), last_action, state_to_features(None),
+                            reward_from_events(self, events))
     append_and_train(self, transition)
     if DECAY and round_number % EPSILON_UPDATE_RATE == 0:
         self.epsilon = EPSILON(self.epsilon)
@@ -108,20 +112,21 @@ def reward_from_events(self, events: List[str]) -> int:
 
     return reward_sum
 
-  
+
 def append_and_train(self, transition):
     self.transitions.append(transition)
     is_terminal = transition.next_state is None
     if GENERATE_STATISTICS:
         self.statistics.update_transition_statistics(transition.reward)
-    balanced_batch = get_balanced_batch_if_possible(self.transitions)
-    if len(balanced_batch) >= BATCH_SIZE:
+    batch = get_training_batch(self.transitions)
+    if len(batch) >= BATCH_SIZE:
         X = []
         ys = []
-        for i, transition in enumerate(balanced_batch):
+        for i, transition in enumerate(batch):
             index_action = INDICES_BY_ACTION[transition.action]
             q_values_next_state = self.target_model.predict(np.expand_dims(transition.next_state, axis=0))[0]
-            expected_return = transition.reward + DISCOUNT * np.max(q_values_next_state) if not is_terminal else transition.reward
+            expected_return = transition.reward + DISCOUNT * np.max(
+                q_values_next_state) if not is_terminal else transition.reward
             q_values_state = self.model.predict(np.expand_dims(transition.state, axis=0))[0]
             q_values_state[index_action] = expected_return
             X.append(transition.state)
@@ -135,6 +140,22 @@ def append_and_train(self, transition):
         self.model_updates += 1
         if self.model_updates % TARGET_MODEL_UPDATE_RATE == 0:
             self.target_model.set_weights(self.model.get_weights())
+
+
+def get_training_batch(transitions):
+    # 0 = Use unmodified batch, 1 = use balanced batch, 2 = use subsample of bigger batch as batch, 3 = 1 + 2
+    if TRAINING_DATA_MODE == 0:
+        return transitions
+    if TRAINING_DATA_MODE == 1:
+        return get_balanced_batch_if_possible(transitions)
+    if TRAINING_DATA_MODE == 2:
+        return get_subsample_if_possible(transitions)
+    else:
+        if len(transitions) > MEMORY_SIZE:
+            get_balanced_batch_if_possible(transitions)
+        else:
+            return np.empty(0)
+
 
 def get_balanced_batch_if_possible(transitions):
     if len(transitions) < BATCH_SIZE:
@@ -158,3 +179,9 @@ def get_balanced_batch_if_possible(transitions):
     np.random.shuffle(returned)
     return returned
 
+
+def get_subsample_if_possible(transitions):
+    if len(transitions) < MEMORY_SIZE:
+        return np.empty(0)
+    np.random.shuffle(transitions)
+    return transitions[:BATCH_SIZE]

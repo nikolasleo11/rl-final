@@ -40,6 +40,8 @@ DETECTION_RADIUS = 1.1
 AMOUNT_ELEMENTS = 5
 
 # Networks
+MEMORY_SIZE = 18000
 BATCH_SIZE = 1800
 MIN_FRACTION = 0.2
 TARGET_MODEL_UPDATE_RATE = 10
+TRAINING_DATA_MODE = 2 # 0 = Use unmodified batch, 1 = use balanced batch, 2 = use subsample of bigger batch as batch, 3 = 1 + 2
