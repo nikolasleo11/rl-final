@@ -7,7 +7,7 @@ import numpy as np
 
 from agent_code.__agent.constants import \
     ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, DECAY, BATCH_SIZE, INPUT_SHAPE, MAX_AGENT_COUNT, \
-    MAX_BOMB_COUNT, MAX_COIN_COUNT,MAX_CRATE_COUNT, MAX_EXPLOSION_COUNT, MAIN_MODEL_FILE_PATH
+    MAX_BOMB_COUNT, MAX_COIN_COUNT, MAX_CRATE_COUNT, MAIN_MODEL_FILE_PATH, MIN_ALLOWED_BOMB_TIMER
 from agent_code import rule_based_agent
 import keras.optimizers
 from keras.models import Sequential, clone_model
@@ -23,7 +23,7 @@ def setup(self):
     self.epsilon = EPSILON()
     self.batch_size = BATCH_SIZE
     self.model = init_model()
-
+    self.previous_bombs = []
     if os.path.isdir(MAIN_MODEL_FILE_PATH):
         self.model = keras.models.load_model(MAIN_MODEL_FILE_PATH)
 
@@ -35,14 +35,9 @@ def setup(self):
 
 def init_model():
     model = Sequential()
-    model.add(Conv2D(32, (7, 7), padding='same', activation="relu", input_shape=INPUT_SHAPE))
-    model.add(Conv2D(64, (5, 5), padding='same', activation="relu"))
-    model.add(Conv2D(64, (3, 3), padding='same', activation="relu"))
-
-    model.add(Flatten())
-
-    model.add(Dense(128, activation='relu'))
-    model.add(Dense(32, activation='relu'))
+    model.add(tf.keras.Input(shape=INPUT_SHAPE))
+    model.add(Dense(1024, activation='relu'))
+    model.add(Dense(512, activation='relu'))
     model.add(Dense(len(ACTIONS), activation='linear'))
 
     opt = tf.keras.optimizers.Adam()
@@ -54,53 +49,43 @@ def act(self, game_state: dict):
     if random.random() <= self.epsilon:
         return np.random.choice(ACTIONS)
     else:
-        features = np.expand_dims(state_to_features(game_state), axis=0)
+        features = np.expand_dims(state_to_features(self, game_state), axis=0)
         q_values = self.model.predict(features)[0]
         index_best_action = np.argmax(q_values)
         return ACTIONS[index_best_action]
 
 
-def state_to_features(game_state: dict) -> np.array:
-    features = state_to_features_cnn(game_state)
+def state_to_features(self, game_state: dict) -> np.array:
+    features = state_to_features_cnn(self, game_state)
     return features
 
-    if game_state is None:
-        return None
 
-    channels = []
-    channels.append(convert_agent_state_to_feature(game_state['self']))
-    for other in game_state['others']:
-        channels.append(convert_agent_state_to_feature(other))
-    for bomb in game_state['bombs']:
-        channels.append(convert_bomb_state_to_feature(bomb))
-    for coin in game_state['coins']:
-        channels.append(convert_coin_state_to_feature(coin))
-    stacked_channels = np.stack(channels)
-    return str(stacked_channels.reshape(-1))
-
-
-def state_to_features_cnn(game_state: dict) -> np.array:
+def state_to_features_cnn(self, game_state: dict) -> np.array:
     if game_state is None:
         return np.zeros(INPUT_SHAPE)
     agent_features = np.zeros((MAX_AGENT_COUNT, 3))
     bomb_features = np.zeros((MAX_BOMB_COUNT, 3))
     coin_features = np.zeros((MAX_COIN_COUNT, 3))
     crate_features = np.zeros((MAX_CRATE_COUNT, 3))
-    explosion_features = np.zeros((MAX_EXPLOSION_COUNT, 3))
     index = 0
     agent_features[index] = convert_agent_state_to_feature(game_state['self'])
     others_sorted = sort_others_consistently(game_state['others'])
-    bombs_sorted = sort_bombs_consistently(game_state['bombs'])
+    bombs_sorted = sort_bombs_consistently(game_state['bombs']+self.previous_bombs)
     coins_sorted = sort_coins_consistently(game_state['coins'])
     crates_sorted = np.argwhere(game_state['field'] == 1)
-    explosions_sorted = np.argwhere(game_state['explosion_map'] > 0)
+    self.previous_bombs.clear()
     for other in others_sorted:
         agent_features[index] = convert_agent_state_to_feature(other)
         index += 1
     index = 0
     for bomb in bombs_sorted:
-        bomb_features[index] = convert_bomb_state_to_feature(bomb)
+        bomb_feature = convert_bomb_state_to_feature(bomb)
+        bomb_features[index] = bomb_feature
         index += 1
+
+        if bomb_feature[2] <= 0 and bomb_feature[2] > MIN_ALLOWED_BOMB_TIMER:
+            bomb_updated = (bomb[0], bomb[1] - 1)
+            self.previous_bombs.append(bomb_updated)
     index = 0
     for coin in coins_sorted:
         coin_features[index] = convert_coin_state_to_feature(coin)
@@ -109,13 +94,9 @@ def state_to_features_cnn(game_state: dict) -> np.array:
     for crate in crates_sorted:
         crate_features[index] = convert_crate_state_to_feature(crate)
         index += 1
-    index = 0
-    for explosion in explosions_sorted:
-        explosion_features[index] = convert_explosion_state_to_feature(explosion, game_state['explosion_map'][explosion[0]][explosion[1]])
-        index += 1
 
-    stacked_channels = np.concatenate([agent_features, bomb_features, coin_features, crate_features, explosion_features])
-    return stacked_channels.reshape(INPUT_SHAPE)
+    stacked_channels = np.concatenate([agent_features, bomb_features, coin_features, crate_features])
+    return stacked_channels.reshape(-1)
 
 
 def state_to_features_custom1(game_state: dict) -> np.array:

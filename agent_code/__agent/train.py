@@ -49,7 +49,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # state_to_features is defined in callbacks.py
     if old_game_state == None:
         return
-    transition = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state),
+    transition = Transition(state_to_features(self, old_game_state), self_action, state_to_features(self, new_game_state),
                             reward_from_events(self, events))
 
     append_and_train(self, transition)
@@ -71,7 +71,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
     round_number = last_game_state['round']
-    transition = Transition(state_to_features(last_game_state), last_action, state_to_features(None),
+    transition = Transition(state_to_features(self, last_game_state), last_action, None,
                             reward_from_events(self, events))
     append_and_train(self, transition)
     if DECAY and round_number % EPSILON_UPDATE_RATE == 0:
@@ -94,13 +94,14 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 100,
-        e.KILLED_OPPONENT: 500,
-        e.INVALID_ACTION: -100,
+        e.COIN_COLLECTED: 20,
+        e.KILLED_OPPONENT: 100,
+        e.INVALID_ACTION: -10,
         e.COIN_FOUND: 2,
-        e.GOT_KILLED: -50,
-        e.KILLED_SELF: -100,
-        e.SURVIVED_ROUND: 100
+        e.GOT_KILLED: -5,
+        e.KILLED_SELF: -10,
+        e.SURVIVED_ROUND: 10,
+        e.WAITED: -5
     }
     reward_sum = 0
     for event in events:
@@ -115,7 +116,6 @@ def reward_from_events(self, events: List[str]) -> int:
 
 def append_and_train(self, transition):
     self.transitions.append(transition)
-    is_terminal = transition.next_state is None
     if GENERATE_STATISTICS:
         self.statistics.update_transition_statistics(transition.reward)
     batch = get_training_batch(self.transitions)
@@ -124,9 +124,10 @@ def append_and_train(self, transition):
         ys = []
         for i, transition in enumerate(batch):
             index_action = INDICES_BY_ACTION[transition.action]
-            q_values_next_state = self.target_model.predict(np.expand_dims(transition.next_state, axis=0))[0]
-            expected_return = transition.reward + DISCOUNT * np.max(
-                q_values_next_state) if not is_terminal else transition.reward
+            expected_return = transition.reward
+            if transition.next_state is not None:
+                expected_return += DISCOUNT * np.max(
+                    self.target_model.predict(np.expand_dims(transition.next_state, axis=0))[0])
             q_values_state = self.model.predict(np.expand_dims(transition.state, axis=0))[0]
             q_values_state[index_action] = expected_return
             X.append(transition.state)
