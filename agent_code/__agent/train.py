@@ -153,7 +153,7 @@ def get_training_batch(transitions):
         return get_subsample_if_possible(transitions)
     else:
         if len(transitions) > MEMORY_SIZE:
-            get_balanced_batch_if_possible(transitions)
+            return get_balanced_batch_if_possible(transitions)
         else:
             return np.empty(0)
 
@@ -172,6 +172,7 @@ def get_balanced_batch_if_possible(transitions):
     np.random.shuffle(negative_transitions)
     transition_groups = [positive_transitions, neutral_transitions, negative_transitions]
     transition_groups = sorted(transition_groups, key=lambda x: len(x), reverse=False)
+    minimum = min(minimum, int(BATCH_SIZE / 3))
     remaining_size = BATCH_SIZE - minimum
     size0 = minimum
     size1 = min(round(remaining_size / 2), len(transition_groups[1]))
