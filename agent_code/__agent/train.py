@@ -84,6 +84,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     append_and_train(self, transition)
     if DECAY and round_number % EPSILON_UPDATE_RATE == 0:
         self.epsilon = EPSILON(self.epsilon)
+        self.min_batch_fraction_size = EPSILON(self.min_batch_fraction_size)
         if GENERATE_STATISTICS:
             self.statistics.add_epsilon(self.epsilon)
     if round_number % MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN == 0:
@@ -102,9 +103,9 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 20,
+        e.COIN_COLLECTED: 10,
         e.KILLED_OPPONENT: 100,
-        e.INVALID_ACTION: -10,
+        e.INVALID_ACTION: -20,
         e.COIN_FOUND: 2,
         e.GOT_KILLED: -5,
         e.KILLED_SELF: -10,
@@ -126,7 +127,7 @@ def append_and_train(self, transition):
     self.transitions.append(transition)
     if GENERATE_STATISTICS:
         self.statistics.update_transition_statistics(transition.reward)
-    batch = get_training_batch(self.transitions)
+    batch = get_training_batch(self)
     if len(batch) >= BATCH_SIZE:
         X = []
         ys = []
@@ -151,29 +152,31 @@ def append_and_train(self, transition):
             self.target_model.set_weights(self.model.get_weights())
 
 
-def get_training_batch(transitions):
+def get_training_batch(self):
+    transitions = self.transitions
     # 0 = Use unmodified batch, 1 = use balanced batch, 2 = use subsample of bigger batch as batch, 3 = 1 + 2
     if TRAINING_DATA_MODE == 0:
         return transitions
     if TRAINING_DATA_MODE == 1:
-        return get_balanced_batch_if_possible(transitions)
+        return get_balanced_batch_if_possible(self)
     if TRAINING_DATA_MODE == 2:
         return get_subsample_if_possible(transitions)
     else:
         if len(transitions) > MEMORY_SIZE:
-            return get_balanced_batch_if_possible(transitions)
+            return get_balanced_batch_if_possible(self)
         else:
             return np.empty(0)
 
 
-def get_balanced_batch_if_possible(transitions):
+def get_balanced_batch_if_possible(self):
+    transitions = self.transitions
     if len(transitions) < BATCH_SIZE:
         return np.empty(0)
     positive_transitions = [transition for transition in transitions if transition.reward > NEUTRAL_REWARD]
     neutral_transitions = [transition for transition in transitions if transition.reward == NEUTRAL_REWARD]
     negative_transitions = [transition for transition in transitions if transition.reward < NEUTRAL_REWARD]
     minimum = np.min([len(positive_transitions), len(neutral_transitions), len(negative_transitions)])
-    if minimum < MIN_FRACTION * BATCH_SIZE:
+    if minimum < self.min_batch_fraction_size:
         return np.empty(0)
     np.random.shuffle(positive_transitions)
     np.random.shuffle(neutral_transitions)
