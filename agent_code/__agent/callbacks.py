@@ -7,7 +7,8 @@ import numpy as np
 
 from agent_code.__agent.constants import \
     ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, DECAY, BATCH_SIZE, INPUT_SHAPE, MAX_AGENT_COUNT, \
-    MAX_BOMB_COUNT, MAX_COIN_COUNT, MAX_CRATE_COUNT, MAIN_MODEL_FILE_PATH, MIN_ALLOWED_BOMB_TIMER
+    MAX_BOMB_COUNT, MAX_COIN_COUNT, MAX_CRATE_COUNT, MAIN_MODEL_FILE_PATH, MIN_ALLOWED_BOMB_TIMER, CENTER_POSITION, \
+    MIRRORED_ACTIONS_BY_ACTION_Y_AXIS, MIRRORED_ACTIONS_BY_ACTION_X_AXIS
 from agent_code import rule_based_agent
 import keras.optimizers
 from keras.models import Sequential, clone_model
@@ -36,8 +37,7 @@ def setup(self):
 def init_model():
     model = Sequential()
     model.add(tf.keras.Input(shape=INPUT_SHAPE))
-    model.add(Dense(1024, activation='relu'))
-    model.add(Dense(512, activation='relu'))
+    model.add(Dense(8192, activation='relu'))
     model.add(Dense(len(ACTIONS), activation='linear'))
 
     opt = tf.keras.optimizers.Adam()
@@ -49,10 +49,12 @@ def act(self, game_state: dict):
     if random.random() <= self.epsilon:
         return np.random.choice(ACTIONS)
     else:
-        features = np.expand_dims(state_to_features(self, game_state), axis=0)
+        self_position = game_state['self'][3]
+        mirrored_game_state = mirror_features(game_state)
+        features = np.expand_dims(state_to_features(self, mirrored_game_state), axis=0)
         q_values = self.model.predict(features)[0]
         index_best_action = np.argmax(q_values)
-        return ACTIONS[index_best_action]
+        return mirror_action(self_position, ACTIONS[index_best_action])
 
 
 def state_to_features(self, game_state: dict) -> np.array:
@@ -72,7 +74,7 @@ def state_to_features_cnn(self, game_state: dict) -> np.array:
     others_sorted = sort_others_consistently(game_state['others'])
     bombs_sorted = sort_bombs_consistently(game_state['bombs']+self.previous_bombs)
     coins_sorted = sort_coins_consistently(game_state['coins'])
-    crates_sorted = np.argwhere(game_state['field'] == 1)
+    # crates_sorted = np.argwhere(game_state['field'] == 1)
     self.previous_bombs.clear()
     for other in others_sorted:
         agent_features[index] = convert_agent_state_to_feature(other)
@@ -91,9 +93,9 @@ def state_to_features_cnn(self, game_state: dict) -> np.array:
         coin_features[index] = convert_coin_state_to_feature(coin)
         index += 1
     index = 0
-    for crate in crates_sorted:
-        crate_features[index] = convert_crate_state_to_feature(crate)
-        index += 1
+    # for crate in crates_sorted:
+    #     crate_features[index] = convert_crate_state_to_feature(crate)
+    #     index += 1
 
     stacked_channels = np.concatenate([agent_features, bomb_features, coin_features, crate_features])
     return stacked_channels.reshape(-1)
@@ -213,3 +215,65 @@ def feature_to_entity(order, feature):
 def dist(vector_tuple1, vector_tuple2):
     return np.abs(vector_tuple1[0] - vector_tuple2[0]) <= DETECTION_RADIUS and np.abs(
         vector_tuple1[1] - vector_tuple2[1]) <= DETECTION_RADIUS
+
+def mirror_features(game_state):
+    new_game_dict = {}
+    agent_data = game_state['self']
+    others_data = game_state['others']
+    bombs_data = game_state['bombs']
+    coins_data = game_state['coins']
+    self_position = (agent_data[3][0], agent_data[3][1])
+    if self_position[0] > CENTER_POSITION[0]:
+        # Mirror by y-axis.
+        agent_data = (agent_data[0], agent_data[1], agent_data[2], get_mirrored_position(agent_data[3], False))
+        new_others_data = []
+        for other in others_data:
+            new_others_data.append((other[0], other[1], other[2], get_mirrored_position(other[3], False)))
+        others_data = new_others_data
+        new_bombs_data = []
+        for bomb in bombs_data:
+            new_bombs_data.append((get_mirrored_position(bomb[0], False), bomb[1]))
+        bombs_data = new_bombs_data
+        new_coins_data = []
+        for coin in coins_data:
+            new_coins_data.append((get_mirrored_position(coin, False)))
+        coins_data = new_coins_data
+    if self_position[1] > CENTER_POSITION[1]:
+        # Mirror by x-axis.
+        agent_data = (agent_data[0], agent_data[1], agent_data[2], get_mirrored_position(agent_data[3], True))
+        new_others_data = []
+        for other in others_data:
+            new_others_data.append((other[0], other[1], other[2], get_mirrored_position(other[3], True)))
+        others_data = new_others_data
+        new_bombs_data = []
+        for bomb in bombs_data:
+            new_bombs_data.append((get_mirrored_position(bomb[0], True), bomb[1]))
+        bombs_data = new_bombs_data
+        new_coins_data = []
+        for coin in coins_data:
+            new_coins_data.append((get_mirrored_position(coin, True)))
+        coins_data = new_coins_data
+    new_game_dict['self'] = agent_data
+    new_game_dict['others'] = others_data
+    new_game_dict['bombs'] = bombs_data
+    new_game_dict['coins'] = coins_data
+
+    return new_game_dict
+
+
+def mirror_action(self_position, action):
+    returned_action = action
+    if self_position[0] > CENTER_POSITION[0]:
+        returned_action = MIRRORED_ACTIONS_BY_ACTION_Y_AXIS[returned_action]
+    if self_position[1] > CENTER_POSITION[1]:
+        returned_action = MIRRORED_ACTIONS_BY_ACTION_X_AXIS[returned_action]
+    return returned_action
+
+
+def get_mirrored_position(position_tuple, x_axis = True):
+    diff = (CENTER_POSITION[0] - position_tuple[0], CENTER_POSITION[1] - position_tuple[1])
+    if x_axis:
+        return (position_tuple[0], CENTER_POSITION[1] + diff[1])
+    else:
+        # Y-Axis.
+        return (CENTER_POSITION[0] + diff[0], position_tuple[1])

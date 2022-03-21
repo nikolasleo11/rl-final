@@ -11,7 +11,7 @@ from agent_code.__agent.constants import INDICES_BY_ACTION, \
 import numpy as np
 import events as e
 import tensorflow as tf
-from .callbacks import state_to_features
+from .callbacks import state_to_features, mirror_action, mirror_features
 from .statistics_data import RoundBasedStatisticsData, NeuralNetworkData
 
 Transition = namedtuple('Transition',
@@ -49,7 +49,12 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # state_to_features is defined in callbacks.py
     if old_game_state == None:
         return
-    transition = Transition(state_to_features(self, old_game_state), self_action, state_to_features(self, new_game_state),
+
+    self_position = old_game_state['self'][3]
+    mirrored_state = mirror_features(old_game_state)
+    mirrored_next_state = mirror_features(new_game_state)
+    mirrored_action = mirror_action(self_position, self_action)
+    transition = Transition(state_to_features(self, mirrored_state), mirrored_action, state_to_features(self, mirrored_next_state),
                             reward_from_events(self, events))
 
     append_and_train(self, transition)
@@ -71,7 +76,10 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
     round_number = last_game_state['round']
-    transition = Transition(state_to_features(self, last_game_state), last_action, None,
+    self_position = last_game_state['self'][3]
+    mirrored_state = mirror_features(last_game_state)
+    mirrored_action = mirror_action(self_position, last_action)
+    transition = Transition(state_to_features(self, mirrored_state), mirrored_action, None,
                             reward_from_events(self, events))
     append_and_train(self, transition)
     if DECAY and round_number % EPSILON_UPDATE_RATE == 0:
