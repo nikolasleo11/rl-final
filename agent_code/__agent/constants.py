@@ -24,7 +24,7 @@ BASE_EPSILON = 1
 DECAY = True
 DECAY_RATE = 0.9
 EPSILON = lambda prev_epsilon=BASE_EPSILON / DECAY_RATE: prev_epsilon * DECAY_RATE if DECAY else BASE_EPSILON
-EPSILON_UPDATE_RATE = 48000 / 12  # Rounds
+EPSILON_UPDATE_RATE = 60000 / 12  # Rounds
 # For optimal decay, use: Decay rate: 0.985, update rate: Total rounds / 100
 
 # Training
@@ -40,7 +40,7 @@ NEUTRAL_REWARD = -1
 # Statistics
 GENERATE_STATISTICS = True
 STATISTICS_PLOTS_FOLDER_PATH = "saved_plots"
-ROUNDS_TO_PLOT = 12000
+ROUNDS_TO_PLOT = 20000
 PLOT = False
 SAVE_PLOTS = True
 

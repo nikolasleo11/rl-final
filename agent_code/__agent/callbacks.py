@@ -6,13 +6,12 @@ from collections import namedtuple
 import numpy as np
 
 from agent_code.__agent.constants import \
-    ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, DECAY, BATCH_SIZE, INPUT_SHAPE, MAX_AGENT_COUNT, \
+    ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, BATCH_SIZE, INPUT_SHAPE, MAX_AGENT_COUNT, \
     MAX_BOMB_COUNT, MAX_COIN_COUNT, MAX_CRATE_COUNT, MAIN_MODEL_FILE_PATH, MIN_ALLOWED_BOMB_TIMER, CENTER_POSITION, \
     MIRRORED_ACTIONS_BY_ACTION_Y_AXIS, MIRRORED_ACTIONS_BY_ACTION_X_AXIS, MIN_FRACTION
-from agent_code import rule_based_agent
 import keras.optimizers
 from keras.models import Sequential, clone_model
-from keras.layers import Dense, LeakyReLU, Flatten, Conv2D, MaxPooling2D
+from keras.layers import Dense, Dropout
 import tensorflow as tf
 from tensorflow.python.client import device_lib
 
@@ -26,6 +25,7 @@ def setup(self):
     self.model = init_model()
     self.previous_bombs = []
     self.min_batch_fraction_size = MIN_FRACTION * BATCH_SIZE
+    self.prev_game_state = None
     if os.path.isdir(MAIN_MODEL_FILE_PATH):
         self.model = keras.models.load_model(MAIN_MODEL_FILE_PATH)
 
@@ -38,25 +38,55 @@ def setup(self):
 def init_model():
     model = Sequential()
     model.add(tf.keras.Input(shape=INPUT_SHAPE))
-    model.add(Dense(1024, activation='relu'))
-    model.add(Dense(512, activation='relu'))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dropout(rate=0.25))
+    model.add(Dense(32, activation='relu'))
+    model.add(Dropout(rate=0.25))
     model.add(Dense(len(ACTIONS), activation='linear'))
 
-    opt = tf.keras.optimizers.SGD(learning_rate=0.005)
+    opt = tf.keras.optimizers.Adam(learning_rate=0.05)
     model.compile(loss='mse', optimizer=opt)
     return model
 
 
 def act(self, game_state: dict):
     if random.random() <= self.epsilon:
-        return np.random.choice(ACTIONS)
+        return np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB', 'WAIT'], p=[.21, .21, .21, .21, .06, 0.1])
     else:
         self_position = game_state['self'][3]
         mirrored_game_state = mirror_features(game_state)
         features = np.expand_dims(state_to_features(self, mirrored_game_state), axis=0)
         q_values = self.model.predict(features)[0]
-        index_best_action = np.argmax(q_values)
-        return mirror_action(self_position, ACTIONS[index_best_action])
+        indices_best_actions = np.flip(np.argsort(q_values))
+
+        for index in indices_best_actions:
+            action = mirror_action(self_position, ACTIONS[index])
+            if self.prev_game_state is not None and (self.prev_game_state == features).all() and action == 'WAIT':
+                continue
+            elif not is_action_valid(game_state['self'], game_state['field'], action):
+                continue
+            self.prev_game_state = features
+            return action
+
+        self.prev_game_state = features
+        return ACTIONS[indices_best_actions[0]]
+
+
+def is_action_valid(self_data, field, action):
+    if action == 'BOMB':
+        return self_data[2]
+
+    self_position = self_data[3]
+    if action == "RIGHT":
+        return field[self_position[0] + 1, self_position[1]] == 0
+    if action == "LEFT":
+        return field[self_position[0] - 1, self_position[1]] == 0
+    if action == "UP":
+        return field[self_position[0], self_position[1] - 1] == 0
+    if action == "DOWN":
+        return field[self_position[0], self_position[1] + 1] == 0
+    else:
+        return True
 
 
 def state_to_features(self, game_state: dict) -> np.array:
@@ -103,16 +133,18 @@ def state_to_features_cnn(self, game_state: dict) -> np.array:
     vector = np.concatenate([agent_features.reshape(-1), valid_actions_feature, bomb_features.reshape(-1), coin_features.reshape(-1), crate_features.reshape(-1)])
     return vector.reshape(-1)
 
+
 def get_valid_actions_feature(self_data, game_field):
     self_position = self_data[3]
     can_plant_bomb = self_data[2]
 
     can_move_left = game_field[self_position[0] - 1, self_position[1]] == 0
-    can_move_up = game_field[self_position[0], self_position[1] + 1] == 0
+    can_move_up = game_field[self_position[0], self_position[1] - 1] == 0 # Yes, it's has to be -.
     can_move_right = game_field[self_position[0] + 1, self_position[1]] == 0
-    can_move_down = game_field[self_position[0], self_position[1] - 1] == 0
+    can_move_down = game_field[self_position[0], self_position[1] + 1] == 0
 
     return np.array([can_move_right, can_move_left, can_move_up, can_move_down, can_plant_bomb])
+
 
 def state_to_features_custom1(game_state: dict) -> np.array:
     if game_state is None:

@@ -48,31 +48,35 @@ class MainTestCase(unittest.TestCase):
                 if coins1[0] != coins2[0] or coins1[1] != \
                         coins2[1]:
                     return False
-            return True
+            return (state1['field'] == state2['field']).all()
 
         game_state = {}
         game_state['self'] = ('name', 0, False, (9, 1))
         game_state['others'] = [('name2', 0, False, (3, 5)), ('name2', 0, False, (1, 8))]
         game_state['bombs'] = [((4, 7), 2)]
         game_state['coins'] = [(9, 8), (6, 12), (15, 2)]
+        game_state['field'] = [[1, 0, 0], [1, 1, 0], [0, 1, 0]]
 
         game_state2 = {}
         game_state2['self'] = ('name', 0, False, (7, 1))
         game_state2['others'] = [('name2', 0, False, (13, 5)), ('name2', 0, False, (15, 8))]
         game_state2['bombs'] = [((12, 7), 2)]
         game_state2['coins'] = [(7, 8), (10, 12), (1, 2)]
+        game_state2['field'] = [[0, 0, 1], [0, 1, 1], [0, 1, 0]]
 
         game_state3 = {}
         game_state3['self'] = ('name', 0, False, (9, 15))
         game_state3['others'] = [('name2', 0, False, (3, 11)), ('name2', 0, False, (1, 8))]
         game_state3['bombs'] = [((4, 9), 2)]
         game_state3['coins'] = [(9, 8), (6, 4), (15, 14)]
+        game_state3['field'] = [[0, 1, 0], [1, 1, 0], [1, 0, 0]]
 
         game_state4 = {}
         game_state4['self'] = ('name', 0, False, (7, 15))
         game_state4['others'] = [('name2', 0, False, (13, 11)), ('name2', 0, False, (15, 8))]
         game_state4['bombs'] = [((12, 9), 2)]
         game_state4['coins'] = [(7, 8), (10, 4), (1, 14)]
+        game_state4['field'] = [[0, 1, 0], [0, 1, 1], [0, 0, 1]]
 
         mirrored_state1 = mirror_features(game_state)
         mirrored_state2 = mirror_features(game_state2)

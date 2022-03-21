@@ -160,9 +160,10 @@ class NeuralNetworkData:
         self.drop_data_after_saving = drop_data_after_saving
         self.total_rewards_per_round = []
         self.amount_transitions_per_round = []
-        self.score_per_round = []
         self.losses = []
         self.current_round = 0
+        self.amount_invalid_decisions_per_round = []
+        self.amount_pointlessly_waited_per_round = []
         if DECAY:
             self.epsilons = []
 
@@ -170,12 +171,10 @@ class NeuralNetworkData:
         if len(self.total_rewards_per_round) <= self.current_round:
             self.total_rewards_per_round.append(0)
             self.amount_transitions_per_round.append(0)
-            self.score_per_round.append(0)
         self.total_rewards_per_round[-1] += reward
         self.amount_transitions_per_round[-1] += 1
 
-    def update_round_statistics(self, score):
-        self.score_per_round[-1] = score
+    def update_round_statistics(self):
         self.current_round += 1
 
     def update_model_statistics(self, loss):
@@ -194,7 +193,6 @@ class NeuralNetworkData:
         xs = np.array(range(round(x_max / batch_size)))
         total_rewards_per_round = np.array(self.total_rewards_per_round)[:x_max]
         amount_transitions_per_round = np.array(self.amount_transitions_per_round)[:x_max]
-        score_per_round = np.array(self.score_per_round)[:x_max]
 
         plt.scatter(xs, np.mean(np.array(total_rewards_per_round).reshape(-1, batch_size), axis=1))
         plt.title("Return per round over time")
@@ -211,15 +209,6 @@ class NeuralNetworkData:
         plt.ylabel("Average amount of moves")
         if SAVE_PLOTS:
             plt.savefig(save_path + 'y.png')
-        if PLOT:
-            plt.show()
-        plt.clf()
-        plt.scatter(xs, np.mean(np.array(score_per_round).reshape(-1, batch_size), axis=1))
-        plt.title("Average score over time")
-        plt.xlabel("* " + str(batch_size) + " Rounds")
-        plt.ylabel("Average Score")
-        if SAVE_PLOTS:
-            plt.savefig(save_path + 'x.png')
         if PLOT:
             plt.show()
         plt.clf()

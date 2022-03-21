@@ -149,6 +149,7 @@ def append_and_train(self, transition):
             self.statistics.update_model_statistics(history.history['loss'][0])
         self.model_updates += 1
         if self.model_updates % TARGET_MODEL_UPDATE_RATE == 0:
+            print("Updating the target model.")
             self.target_model.set_weights(self.model.get_weights())
 
 
