@@ -7,7 +7,7 @@ import keras.callbacks
 from agent_code.__agent.constants import INDICES_BY_ACTION, \
     MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, EPSILON_UPDATE_RATE, DECAY, \
     EPSILON, BATCH_SIZE, ACTIONS, MAIN_MODEL_FILE_PATH, DISCOUNT, ROUNDS_TO_PLOT, NEUTRAL_REWARD, MIN_FRACTION, \
-    TARGET_MODEL_UPDATE_RATE, TRAINING_DATA_MODE, MEMORY_SIZE
+    TARGET_MODEL_UPDATE_RATE, TRAINING_DATA_MODE, MEMORY_SIZE, VALIDATION_PERFORMANCE_ROUNDS
 import numpy as np
 import events as e
 import tensorflow as tf
@@ -22,6 +22,7 @@ def setup_training(self):
     self.transitions = []
     if GENERATE_STATISTICS:
         self.statistics = NeuralNetworkData()
+        self.statistics.append_validation()
 
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
@@ -57,7 +58,12 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     transition = Transition(state_to_features(self, mirrored_state), mirrored_action, state_to_features(self, mirrored_next_state),
                             reward_from_events(self, events))
 
-    append_and_train(self, transition)
+    self.transitions.append(transition)
+    if GENERATE_STATISTICS:
+        self.statistics.update_transition_statistics(transition.reward)
+        if self.validation_rounds > 0:
+            self.statistics.update_validation_statistics(VALIDATION_PERFORMANCE_ROUNDS - self.validation_rounds,
+                                                         transition.reward)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -82,6 +88,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     transition = Transition(state_to_features(self, mirrored_state), mirrored_action, None,
                             reward_from_events(self, events))
     append_and_train(self, transition)
+    if self.validation_rounds > 0:
+        self.validation_rounds -= 1
     if DECAY and round_number % EPSILON_UPDATE_RATE == 0:
         self.epsilon = EPSILON(self.epsilon)
         self.min_batch_fraction_size = EPSILON(self.min_batch_fraction_size)
@@ -90,7 +98,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     if round_number % MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN == 0:
         self.model.save(MAIN_MODEL_FILE_PATH)
     if GENERATE_STATISTICS:
-        self.statistics.update_round_statistics(0)
+        self.statistics.update_round_statistics()
         if round_number % ROUNDS_TO_PLOT == 0:
             self.statistics.plot()
 
@@ -127,6 +135,8 @@ def append_and_train(self, transition):
     self.transitions.append(transition)
     if GENERATE_STATISTICS:
         self.statistics.update_transition_statistics(transition.reward)
+        if self.validation_rounds > 0:
+            self.statistics.update_validation_statistics(VALIDATION_PERFORMANCE_ROUNDS - self.validation_rounds, transition.reward)
     batch = get_training_batch(self)
     if len(batch) >= BATCH_SIZE:
         X = []
@@ -152,6 +162,8 @@ def append_and_train(self, transition):
             print("Updating the target model.")
             self.target_model.set_weights(self.model.get_weights())
 
+        self.validation_rounds = VALIDATION_PERFORMANCE_ROUNDS + 1 # Auto -1 after this function.
+        self.statistics.append_validation()
 
 def get_training_batch(self):
     transitions = self.transitions

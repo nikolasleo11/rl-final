@@ -5,7 +5,8 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
-from agent_code.__agent.constants import DECAY, STATISTICS_PLOTS_FOLDER_PATH, SAVE_PLOTS, PLOT
+from agent_code.__agent.constants import DECAY, STATISTICS_PLOTS_FOLDER_PATH, SAVE_PLOTS, PLOT, \
+    VALIDATION_PERFORMANCE_ROUNDS
 
 
 class RoundBasedStatisticsData:
@@ -155,15 +156,18 @@ class RoundBasedStatisticsData:
 
 
 class NeuralNetworkData:
-    def __init__(self, amount_x=1000, drop_data_after_saving=True):
+    def __init__(self, amount_x=1000):
         self.amount_x = amount_x
-        self.drop_data_after_saving = drop_data_after_saving
         self.total_rewards_per_round = []
         self.amount_transitions_per_round = []
         self.losses = []
         self.current_round = 0
-        self.amount_invalid_decisions_per_round = []
-        self.amount_pointlessly_waited_per_round = []
+
+        # Validation data.
+        self.amount_invalid_decisions = []
+        self.amount_pointlessly_waited = []
+        self.rewards = []
+        self.moves_per_round = []
         if DECAY:
             self.epsilons = []
 
@@ -176,6 +180,14 @@ class NeuralNetworkData:
 
     def update_round_statistics(self):
         self.current_round += 1
+
+    def append_validation(self):
+        self.rewards.append(np.zeros(VALIDATION_PERFORMANCE_ROUNDS))
+        self.moves_per_round.append(np.zeros(VALIDATION_PERFORMANCE_ROUNDS))
+
+    def update_validation_statistics(self, validation_round_number, reward):
+        self.rewards[-1][validation_round_number] += reward
+        self.moves_per_round[-1][validation_round_number] += 1
 
     def update_model_statistics(self, loss):
         self.losses.append(loss)
@@ -218,6 +230,44 @@ class NeuralNetworkData:
         plt.ylabel("Training Loss")
         if SAVE_PLOTS:
             plt.savefig(save_path + 'w.png')
+        if PLOT:
+            plt.show()
+        plt.clf()
+
+        reward_means = np.mean(self.rewards, axis=1)
+        reward_stds = np.std(self.rewards, axis=1)
+        plt.errorbar(np.array(range(len(reward_means))), reward_means, reward_stds, fmt='.',
+                     ecolor='red', barsabove=True)
+        plt.title("Validation: Rewards per round")
+        plt.xlabel("Time")
+        plt.ylabel("Rewards")
+        if SAVE_PLOTS:
+            plt.savefig(save_path + 'u.png')
+        if PLOT:
+            plt.show()
+        plt.clf()
+        moves_means = np.mean(self.moves_per_round, axis=1)
+        moves_stds = np.std(self.moves_per_round, axis=1)
+        plt.errorbar(np.array(range(len(moves_means))), moves_means, moves_stds, fmt='.',
+                     ecolor='red', barsabove=True)
+        plt.title("Validation: Moves per round")
+        plt.xlabel("Time")
+        plt.ylabel("Moves")
+        if SAVE_PLOTS:
+            plt.savefig(save_path + 't.png')
+        if PLOT:
+            plt.show()
+        plt.clf()
+        reward_move_ratio = np.array(self.rewards) / np.array(self.moves_per_round)
+        ratio_means = np.mean(reward_move_ratio, axis=1)
+        ratio_stds = np.std(reward_move_ratio, axis=1)
+        plt.errorbar(np.array(range(len(ratio_means))), ratio_means, ratio_stds, fmt='.',
+                     ecolor='red', barsabove=True)
+        plt.title("Validation: Reward per move per round")
+        plt.xlabel("Time")
+        plt.ylabel("Reward per move")
+        if SAVE_PLOTS:
+            plt.savefig(save_path + 's.png')
         if PLOT:
             plt.show()
         plt.clf()

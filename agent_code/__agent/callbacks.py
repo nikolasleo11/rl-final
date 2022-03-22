@@ -8,7 +8,7 @@ import numpy as np
 from agent_code.__agent.constants import \
     ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, BATCH_SIZE, INPUT_SHAPE, MAX_AGENT_COUNT, \
     MAX_BOMB_COUNT, MAX_COIN_COUNT, MAX_CRATE_COUNT, MAIN_MODEL_FILE_PATH, MIN_ALLOWED_BOMB_TIMER, CENTER_POSITION, \
-    MIRRORED_ACTIONS_BY_ACTION_Y_AXIS, MIRRORED_ACTIONS_BY_ACTION_X_AXIS, MIN_FRACTION
+    MIRRORED_ACTIONS_BY_ACTION_Y_AXIS, MIRRORED_ACTIONS_BY_ACTION_X_AXIS, MIN_FRACTION, VALIDATION_PERFORMANCE_ROUNDS
 import keras.optimizers
 from keras.models import Sequential, clone_model
 from keras.layers import Dense, Dropout
@@ -26,6 +26,7 @@ def setup(self):
     self.previous_bombs = []
     self.min_batch_fraction_size = MIN_FRACTION * BATCH_SIZE
     self.prev_game_state = None
+    self.validation_rounds = VALIDATION_PERFORMANCE_ROUNDS
     if os.path.isdir(MAIN_MODEL_FILE_PATH):
         self.model = keras.models.load_model(MAIN_MODEL_FILE_PATH)
 
@@ -50,9 +51,7 @@ def init_model():
 
 
 def act(self, game_state: dict):
-    if random.random() <= self.epsilon:
-        return np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB', 'WAIT'], p=[.21, .21, .21, .21, .06, 0.1])
-    else:
+    if self.validation_rounds > 0 or random.random() > self.epsilon:
         self_position = game_state['self'][3]
         mirrored_game_state = mirror_features(game_state)
         features = np.expand_dims(state_to_features(self, mirrored_game_state), axis=0)
@@ -70,6 +69,8 @@ def act(self, game_state: dict):
 
         self.prev_game_state = features
         return ACTIONS[indices_best_actions[0]]
+    else:
+        return np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB', 'WAIT'], p=[.21, .21, .21, .21, .06, 0.1])
 
 
 def is_action_valid(self_data, field, action):
