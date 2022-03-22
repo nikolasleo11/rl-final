@@ -9,10 +9,10 @@ from agent_code.__agent.constants import \
     ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, BATCH_SIZE, INPUT_SHAPE, MAX_AGENT_COUNT, \
     MAX_BOMB_COUNT, MAX_COIN_COUNT, MAX_CRATE_COUNT, MAIN_MODEL_FILE_PATH, MIN_ALLOWED_BOMB_TIMER, CENTER_POSITION, \
     MIRRORED_ACTIONS_BY_ACTION_Y_AXIS, MIRRORED_ACTIONS_BY_ACTION_X_AXIS, MIN_FRACTION, VALIDATION_PERFORMANCE_ROUNDS
-import keras.optimizers
-from keras.models import Sequential, clone_model
-from keras.layers import Dense, Dropout
+import tensorflow.keras.optimizers
 import tensorflow as tf
+from tensorflow.keras.models import Sequential, clone_model
+from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.python.client import device_lib
 
 
@@ -28,7 +28,7 @@ def setup(self):
     self.prev_game_state = None
     self.validation_rounds = VALIDATION_PERFORMANCE_ROUNDS
     if os.path.isdir(MAIN_MODEL_FILE_PATH):
-        self.model = keras.models.load_model(MAIN_MODEL_FILE_PATH)
+        self.model = tensorflow.keras.models.load_model(MAIN_MODEL_FILE_PATH)
 
     if self.train:
         self.target_model = clone_model(self.model)
@@ -53,8 +53,7 @@ def init_model():
 def act(self, game_state: dict):
     if self.validation_rounds > 0 or random.random() > self.epsilon:
         self_position = game_state['self'][3]
-        mirrored_game_state = mirror_features(game_state)
-        features = np.expand_dims(state_to_features(self, mirrored_game_state), axis=0)
+        features = np.expand_dims(state_to_features(self, game_state), axis=0)
         q_values = self.model.predict(features)[0]
         indices_best_actions = np.flip(np.argsort(q_values))
 
@@ -91,6 +90,7 @@ def is_action_valid(self_data, field, action):
 
 
 def state_to_features(self, game_state: dict) -> np.array:
+    game_state = mirror_features(game_state)
     features = state_to_features_cnn(self, game_state)
     return features
 
@@ -105,6 +105,7 @@ def state_to_features_cnn(self, game_state: dict) -> np.array:
     crate_features = np.zeros((MAX_CRATE_COUNT, 2))
     index = 0
     agent_features[index] = convert_agent_state_to_feature(game_state['self'])
+    index += 1
     others_sorted = sort_others_consistently(game_state['others'])
     bombs_sorted = sort_bombs_consistently(game_state['bombs']+self.previous_bombs)
     coins_sorted = sort_coins_consistently(game_state['coins'])

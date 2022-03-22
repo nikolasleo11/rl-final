@@ -2,7 +2,7 @@ from collections import namedtuple
 import pickle
 from typing import List
 
-import keras.callbacks
+import tensorflow.keras.callbacks
 
 from agent_code.__agent.constants import INDICES_BY_ACTION, \
     MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, EPSILON_UPDATE_RATE, DECAY, \
@@ -11,7 +11,7 @@ from agent_code.__agent.constants import INDICES_BY_ACTION, \
 import numpy as np
 import events as e
 import tensorflow as tf
-from .callbacks import state_to_features, mirror_action, mirror_features
+from .callbacks import state_to_features, mirror_action
 from .statistics_data import RoundBasedStatisticsData, NeuralNetworkData
 
 Transition = namedtuple('Transition',
@@ -52,10 +52,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         return
 
     self_position = old_game_state['self'][3]
-    mirrored_state = mirror_features(old_game_state)
-    mirrored_next_state = mirror_features(new_game_state)
     mirrored_action = mirror_action(self_position, self_action)
-    transition = Transition(state_to_features(self, mirrored_state), mirrored_action, state_to_features(self, mirrored_next_state),
+    transition = Transition(state_to_features(self, old_game_state), mirrored_action, state_to_features(self, new_game_state),
                             reward_from_events(self, events))
 
     self.transitions.append(transition)
@@ -83,9 +81,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     round_number = last_game_state['round']
     self_position = last_game_state['self'][3]
-    mirrored_state = mirror_features(last_game_state)
     mirrored_action = mirror_action(self_position, last_action)
-    transition = Transition(state_to_features(self, mirrored_state), mirrored_action, None,
+    transition = Transition(state_to_features(self, last_game_state), mirrored_action, None,
                             reward_from_events(self, events))
     append_and_train(self, transition)
     if self.validation_rounds > 0:
