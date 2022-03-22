@@ -60,7 +60,7 @@ def act(self, game_state: dict):
         indices_best_actions = np.flip(np.argsort(q_values))
 
         for index in indices_best_actions:
-            action = mirror_action(self_position, ACTIONS[index])
+            action = ACTIONS[index]
             if self.prev_game_state is not None and (self.prev_game_state == features).all() and action == 'WAIT':
                 continue
             elif not is_action_valid(game_state['self'], game_state['field'], action):
@@ -92,7 +92,6 @@ def is_action_valid(self_data, field, action):
 
 
 def state_to_features(self, game_state: dict) -> np.array:
-    game_state = mirror_features(game_state)
     features = state_to_features_cnn(self, game_state)
     return features
 
