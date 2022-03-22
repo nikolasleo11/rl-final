@@ -148,7 +148,7 @@ def append_and_train(self, transition):
             q_values_state[index_action] = expected_return
             X.append(transition.state)
             ys.append(q_values_state)
-        history = keras.callbacks.History()
+        history = tensorflow.keras.callbacks.History()
         self.model.fit(np.array(X), np.array(ys), batch_size=BATCH_SIZE, verbose=1, callbacks=[history])
         self.transitions.clear()
 
