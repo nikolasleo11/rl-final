@@ -7,7 +7,7 @@ import numpy as np
 
 from agent_code.__agent.constants import \
     ACTIONS, EPSILON, DETECTION_RADIUS, AMOUNT_ELEMENTS, BATCH_SIZE, INPUT_SHAPE, MAX_AGENT_COUNT, \
-    MAX_BOMB_COUNT, MAX_COIN_COUNT, MAX_CRATE_COUNT, MAIN_MODEL_FILE_PATH, MIN_ALLOWED_BOMB_TIMER, CENTER_POSITION, \
+    MAX_BOMB_COUNT, MAX_COIN_COUNT, MAX_CRATE_COUNT, MAIN_MODEL_FILE_PATH, MIN_ALLOWED_BOMB_TIMER, \
     MIRRORED_ACTIONS_BY_ACTION_Y_AXIS, MIRRORED_ACTIONS_BY_ACTION_X_AXIS, MIN_FRACTION, VALIDATION_PERFORMANCE_ROUNDS
 import tensorflow.keras.optimizers
 import tensorflow as tf
@@ -41,10 +41,10 @@ def setup(self):
 def init_model():
     model = Sequential()
     model.add(tf.keras.Input(shape=INPUT_SHAPE))
+    model.add(Dense(128, activation='relu'))
+    model.add(Dropout(rate=0.1))
     model.add(Dense(64, activation='relu'))
-    model.add(Dropout(rate=0.25))
-    model.add(Dense(32, activation='relu'))
-    model.add(Dropout(rate=0.25))
+    model.add(Dropout(rate=0.1))
     model.add(Dense(len(ACTIONS), activation='linear'))
 
     opt = tf.keras.optimizers.Adam(learning_rate=0.05)
@@ -54,7 +54,6 @@ def init_model():
 
 def act(self, game_state: dict):
     if self.validation_rounds > 0 or random.random() > self.epsilon:
-        self_position = game_state['self'][3]
         features = np.expand_dims(state_to_features(self, game_state), axis=0)
         q_values = self.model.predict(features)[0]
         indices_best_actions = np.flip(np.argsort(q_values))
@@ -104,37 +103,63 @@ def state_to_features_cnn(self, game_state: dict) -> np.array:
     bomb_features = np.zeros((MAX_BOMB_COUNT, 3))
     coin_features = np.zeros((MAX_COIN_COUNT, 2))
     crate_features = np.zeros((MAX_CRATE_COUNT, 2))
-    index = 0
-    agent_features[index] = convert_agent_state_to_feature(game_state['self'])
-    index += 1
-    others_sorted = sort_others_consistently(game_state['others'])
-    bombs_sorted = sort_bombs_consistently(game_state['bombs']+self.previous_bombs)
-    coins_sorted = sort_coins_consistently(game_state['coins'])
-    # crates_sorted = np.argwhere(game_state['field'] == 1)
-    self.previous_bombs.clear()
-    for other in others_sorted:
-        agent_features[index] = convert_agent_state_to_feature(other)
-        index += 1
-    index = 0
-    for bomb in bombs_sorted:
-        bomb_feature = convert_bomb_state_to_feature(bomb)
-        bomb_features[index] = bomb_feature
-        index += 1
 
-        if bomb_feature[2] <= 0 and bomb_feature[2] > MIN_ALLOWED_BOMB_TIMER:
+    self_position = game_state['self'][3]
+    index = 0
+    others_sorted = extract_dist_data_others(self_position, game_state['others'])
+    all_bombs = game_state['bombs'] + self.previous_bombs
+    bombs_sorted = extract_dist_data_bombs(self_position, all_bombs)
+    coins_sorted = extract_dist_data_coins(self_position, game_state['coins'])
+    self.previous_bombs.clear()
+    # crates_sorted = np.argwhere(game_state['field'] == 1)
+    for i, others in enumerate(others_sorted):
+        agent_features[i] = others
+    for i, bomb in enumerate(bombs_sorted):
+        bomb_features[i] = bomb
+    for i, coin in enumerate(coins_sorted):
+        coin_features[i] = coin
+
+    for bomb in all_bombs:
+        if bomb[1] <= 0 and bomb[1] > MIN_ALLOWED_BOMB_TIMER:
             bomb_updated = (bomb[0], bomb[1] - 1)
             self.previous_bombs.append(bomb_updated)
-    index = 0
-    for coin in coins_sorted:
-        coin_features[index] = convert_coin_state_to_feature(coin)
-        index += 1
-    index = 0
+
     # for crate in crates_sorted:
     #     crate_features[index] = convert_crate_state_to_feature(crate)
     #     index += 1
 
-    vector = np.concatenate([agent_features.reshape(-1), valid_actions_feature, bomb_features.reshape(-1), coin_features.reshape(-1), crate_features.reshape(-1)])
+    vector = np.concatenate([valid_actions_feature, agent_features.reshape(-1), bomb_features.reshape(-1), coin_features.reshape(-1), crate_features.reshape(-1)])
     return vector.reshape(-1)
+
+
+def extract_dist_data_others(self_position, others):
+    features = []
+    for other in others:
+        other_feature = convert_agent_state_to_feature(other)
+        dist = (other_feature[0] - self_position[0], other_feature[1] - self_position[1])
+        features.append(np.array([dist[0], dist[1], other_feature[2]]))
+    features = sorted(features, key=lambda element: element[0] * element[0] + element[1] * element[1])
+    return np.array(features)
+
+
+def extract_dist_data_bombs(self_position, bombs):
+    features = []
+    for bomb in bombs:
+        bomb_feature = convert_bomb_state_to_feature(bomb)
+        dist = (bomb_feature[0] - self_position[0], bomb_feature[1] - self_position[1])
+        features.append(np.array([dist[0], dist[1], bomb_feature[2]]))
+    features = sorted(features, key=lambda element: element[0] * element[0] + element[1] * element[1])
+    return np.array(features)
+
+
+def extract_dist_data_coins(self_position, coins):
+    features = []
+    for coin in coins:
+        coin_feature = convert_coin_state_to_feature(coin)
+        dist = (coin_feature[0] - self_position[0], coin_feature[1] - self_position[1])
+        features.append(np.array([dist[0], dist[1]]))
+    features = sorted(features, key=lambda element: element[0] * element[0] + element[1] * element[1])
+    return np.array(features)
 
 
 def get_valid_actions_feature(self_data, game_field):

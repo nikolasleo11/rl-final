@@ -4,8 +4,8 @@ from pathlib import Path
 from fallbacks import pygame
 
 # Game properties
-COLS = 9
-ROWS = 9
+COLS = 17
+ROWS = 17
 SCENARIOS = {
     "coin-heaven": {
         "CRATE_DENSITY": 0,

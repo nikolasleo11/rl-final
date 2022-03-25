@@ -104,13 +104,12 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 10,
+        e.COIN_COLLECTED: 35,
         e.KILLED_OPPONENT: 100,
         e.INVALID_ACTION: -20,
-        e.COIN_FOUND: 2,
-        e.GOT_KILLED: -5,
-        e.KILLED_SELF: -10,
-        e.SURVIVED_ROUND: 10,
+        e.COIN_FOUND: 5,
+        e.GOT_KILLED: -15,
+        e.KILLED_SELF: -15,
         e.WAITED: -5
     }
     reward_sum = 0
