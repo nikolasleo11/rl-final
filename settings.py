@@ -8,8 +8,8 @@ COLS = 17
 ROWS = 17
 SCENARIOS = {
     "coin-heaven": {
-        "CRATE_DENSITY": 0,
-        "COIN_COUNT": 50
+        "CRATE_DENSITY": 0.5,
+        "COIN_COUNT": 10
     },
     # This is the tournament game mode
     "classic": {
@@ -19,7 +19,7 @@ SCENARIOS = {
     # Feel free to add more game modes and properties
     # game is created in environment.py -> BombeRLeWorld -> build_arena()
 }
-MAX_AGENTS = 1
+MAX_AGENTS = 4
 
 # Round properties
 MAX_STEPS = 400

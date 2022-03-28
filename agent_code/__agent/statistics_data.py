@@ -5,7 +5,8 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
-from agent_code.__agent.constants import DECAY, STATISTICS_PLOTS_FOLDER_PATH
+from agent_code.__agent.constants import DECAY, STATISTICS_PLOTS_FOLDER_PATH, SAVE_PLOTS, PLOT, \
+    VALIDATION_PERFORMANCE_ROUNDS
 
 
 class RoundBasedStatisticsData:
@@ -77,7 +78,7 @@ class RoundBasedStatisticsData:
             plt.savefig(save_path + 'a.png')
         if show_plot:
             plt.show()
-
+        plt.clf()
         plt.scatter(xs, np.mean(total_amount_of_states_per_round.reshape(-1, batch_size), axis=1))
         plt.title("Average amount of discovered states over time")
         plt.xlabel("* " + str(batch_size) + " Rounds")
@@ -86,7 +87,7 @@ class RoundBasedStatisticsData:
             plt.savefig(save_path + 'b.png')
         if show_plot:
             plt.show()
-
+        plt.clf()
         plt.scatter(xs, np.mean(total_amount_of_moves_per_round.reshape(-1, batch_size), axis=1))
         plt.title("Average amount of moves per round over time")
         plt.xlabel("* " + str(batch_size) + " Rounds")
@@ -95,7 +96,7 @@ class RoundBasedStatisticsData:
             plt.savefig(save_path + 'c.png')
         if show_plot:
             plt.show()
-
+        plt.clf()
         plt.scatter(xs, np.mean(total_rewards_per_round.reshape(-1, batch_size), axis=1))
         plt.title("Returns over time")
         plt.xlabel("* " + str(batch_size) + " Rounds")
@@ -104,7 +105,7 @@ class RoundBasedStatisticsData:
             plt.savefig(save_path + 'd.png')
         if show_plot:
             plt.show()
-
+        plt.clf()
         if self.expanded_mode:
             total_received_amount_of_states = np.array(self.total_received_amount_of_states)
             total_received_amount_of_states = np.flip(np.sort(total_received_amount_of_states[(total_received_amount_of_states >= 1) & (total_received_amount_of_states <= np.max(total_received_amount_of_states) * 0.9)]))
@@ -116,7 +117,7 @@ class RoundBasedStatisticsData:
                 plt.savefig(save_path + 'e.png')
             if show_plot:
                 plt.show()
-
+            plt.clf()
             q_value_deltas = np.array([np.array([np.mean(deltas), np.std(deltas)]) for deltas in self.q_value_deltas_per_state if len(deltas) > 0]).T
 
             plt.errorbar(np.array(range(q_value_deltas.shape[1])), q_value_deltas[0], q_value_deltas[1], fmt='.', ecolor='red', barsabove=True)
@@ -128,6 +129,7 @@ class RoundBasedStatisticsData:
                 plt.savefig(save_path + 'f.png')
             if show_plot:
                 plt.show()
+            plt.clf()
         if DECAY:
             plt.scatter(np.array(range(len(self.epsilons))), self.epsilons)
             plt.title("Epsilon over time")
@@ -137,7 +139,7 @@ class RoundBasedStatisticsData:
                 plt.savefig(save_path + 'g.png')
             if show_plot:
                 plt.show()
-
+        plt.clf()
         if save and self.drop_data_after_saving:
             self.total_amount_of_new_states = [0]
             self.total_amount_of_transitions = [0]
@@ -151,3 +153,131 @@ class RoundBasedStatisticsData:
 
             if DECAY:
                 self.epsilons = [self.agent.epsilon]
+
+
+class NeuralNetworkData:
+    def __init__(self, amount_x=1000):
+        self.amount_x = amount_x
+        self.total_rewards_per_round = []
+        self.amount_transitions_per_round = []
+        self.losses = []
+        self.current_round = 0
+
+        # Validation data.
+        self.amount_invalid_decisions = []
+        self.amount_pointlessly_waited = []
+        self.rewards = []
+        self.moves_per_round = []
+        if DECAY:
+            self.epsilons = []
+
+    def update_transition_statistics(self, reward):
+        if len(self.total_rewards_per_round) <= self.current_round:
+            self.total_rewards_per_round.append(0)
+            self.amount_transitions_per_round.append(0)
+        self.total_rewards_per_round[-1] += reward
+        self.amount_transitions_per_round[-1] += 1
+
+    def update_round_statistics(self):
+        self.current_round += 1
+
+    def append_validation(self):
+        self.rewards.append(np.zeros(VALIDATION_PERFORMANCE_ROUNDS))
+        self.moves_per_round.append(np.zeros(VALIDATION_PERFORMANCE_ROUNDS))
+
+    def update_validation_statistics(self, validation_round_number, reward):
+        self.rewards[-1][validation_round_number] += reward
+        self.moves_per_round[-1][validation_round_number] += 1
+
+    def update_model_statistics(self, loss):
+        self.losses.append(loss)
+
+    def add_epsilon(self, epsilon):
+        self.epsilons.append(epsilon)
+
+    def plot(self):
+        save_path = STATISTICS_PLOTS_FOLDER_PATH + "/" + str(int(datetime.utcnow().strftime("%Y%m%d%H%M%S")))
+        if SAVE_PLOTS and not os.path.exists(STATISTICS_PLOTS_FOLDER_PATH):
+            os.makedirs(STATISTICS_PLOTS_FOLDER_PATH)
+        amount_x = min(len(self.total_rewards_per_round), self.amount_x)
+        batch_size = math.floor(len(self.total_rewards_per_round) / amount_x)
+        x_max = (len(self.total_rewards_per_round) - len(self.total_rewards_per_round) % batch_size)
+        xs = np.array(range(round(x_max / batch_size)))
+        total_rewards_per_round = np.array(self.total_rewards_per_round)[:x_max]
+        amount_transitions_per_round = np.array(self.amount_transitions_per_round)[:x_max]
+
+        plt.scatter(xs, np.mean(np.array(total_rewards_per_round).reshape(-1, batch_size), axis=1))
+        plt.title("Return per round over time")
+        plt.xlabel("* " + str(batch_size) + " Rounds")
+        plt.ylabel("Average Return")
+        if SAVE_PLOTS:
+            plt.savefig(save_path + 'z.png')
+        if PLOT:
+            plt.show()
+        plt.clf()
+        plt.scatter(xs, np.mean(np.array(amount_transitions_per_round).reshape(-1, batch_size), axis=1))
+        plt.title("Average amount of moves per round over time")
+        plt.xlabel("* " + str(batch_size) + " Rounds")
+        plt.ylabel("Average amount of moves")
+        if SAVE_PLOTS:
+            plt.savefig(save_path + 'y.png')
+        if PLOT:
+            plt.show()
+        plt.clf()
+        plt.scatter(np.array(range(len(self.losses))), self.losses)
+        plt.title("Losses over time")
+        plt.xlabel("Time")
+        plt.ylabel("Training Loss")
+        if SAVE_PLOTS:
+            plt.savefig(save_path + 'w.png')
+        if PLOT:
+            plt.show()
+        plt.clf()
+
+        reward_means = np.mean(self.rewards, axis=1)
+        reward_stds = np.std(self.rewards, axis=1)
+        plt.errorbar(np.array(range(len(reward_means))), reward_means, reward_stds, fmt='.',
+                     ecolor='red', barsabove=True)
+        plt.title("Validation: Rewards per round")
+        plt.xlabel("Time")
+        plt.ylabel("Rewards")
+        if SAVE_PLOTS:
+            plt.savefig(save_path + 'u.png')
+        if PLOT:
+            plt.show()
+        plt.clf()
+        moves_means = np.mean(self.moves_per_round, axis=1)
+        moves_stds = np.std(self.moves_per_round, axis=1)
+        plt.errorbar(np.array(range(len(moves_means))), moves_means, moves_stds, fmt='.',
+                     ecolor='red', barsabove=True)
+        plt.title("Validation: Moves per round")
+        plt.xlabel("Time")
+        plt.ylabel("Moves")
+        if SAVE_PLOTS:
+            plt.savefig(save_path + 't.png')
+        if PLOT:
+            plt.show()
+        plt.clf()
+        reward_move_ratio = np.array(self.rewards) / np.array(self.moves_per_round)
+        ratio_means = np.mean(reward_move_ratio, axis=1)
+        ratio_stds = np.std(reward_move_ratio, axis=1)
+        plt.errorbar(np.array(range(len(ratio_means))), ratio_means, ratio_stds, fmt='.',
+                     ecolor='red', barsabove=True)
+        plt.title("Validation: Reward per move per round")
+        plt.xlabel("Time")
+        plt.ylabel("Reward per move")
+        if SAVE_PLOTS:
+            plt.savefig(save_path + 's.png')
+        if PLOT:
+            plt.show()
+        plt.clf()
+        if DECAY:
+            plt.scatter(np.array(range(len(self.epsilons))), self.epsilons)
+            plt.title("Epsilon over time")
+            plt.xlabel("Time")
+            plt.ylabel("Epsilon")
+            if SAVE_PLOTS:
+                plt.savefig(save_path + 'v.png')
+            if PLOT:
+                plt.show()
+            plt.clf()
