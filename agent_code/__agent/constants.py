@@ -28,14 +28,14 @@ EPSILON_UPDATE_RATE = 90000 / 12  # Rounds
 # For optimal decay, use: Decay rate: 0.985, update rate: Total rounds / 100
 
 # Training
-DISCOUNT = 1
+DISCOUNT = 0.9
 LEARNING_FACTOR = 0.1
 MAX_AGENT_COUNT = 3
-MAX_BOMB_COUNT = 8
+MAX_BOMB_COUNT = 4
 MAX_COIN_COUNT = 10
-MAX_CRATE_COUNT = 0
-INPUT_SHAPE = (MAX_AGENT_COUNT + MAX_BOMB_COUNT) * 3 + (MAX_COIN_COUNT + MAX_CRATE_COUNT) * 2 + 5
-NEUTRAL_REWARD = 0
+MAX_CRATE_COUNT = 20
+INPUT_SHAPE = (MAX_BOMB_COUNT) * 3 + (MAX_AGENT_COUNT + MAX_COIN_COUNT + MAX_CRATE_COUNT) * 2 + 7
+NEUTRAL_REWARD = -1
 
 # Statistics
 GENERATE_STATISTICS = True
@@ -54,4 +54,4 @@ MEMORY_SIZE = 5600
 BATCH_SIZE = 1800
 MIN_FRACTION = 0.25
 TARGET_MODEL_UPDATE_RATE = 5
-TRAINING_DATA_MODE = 3  # 0 = Use unmodified batch, 1 = use balanced batch, 2 = use subsample of bigger batch as batch, 3 = 1 + 2
+TRAINING_DATA_MODE = 2  # 0 = Use unmodified batch, 1 = use balanced batch, 2 = use subsample of bigger batch as batch, 3 = 1 + 2

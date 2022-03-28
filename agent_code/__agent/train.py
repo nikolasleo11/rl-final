@@ -7,7 +7,7 @@ import tensorflow.keras.callbacks
 from agent_code.__agent.constants import INDICES_BY_ACTION, \
     MINIMUM_ROUNDS_REQUIRED_TO_SAVE_TRAIN, GENERATE_STATISTICS, EPSILON_UPDATE_RATE, DECAY, \
     EPSILON, BATCH_SIZE, ACTIONS, MAIN_MODEL_FILE_PATH, DISCOUNT, ROUNDS_TO_PLOT, NEUTRAL_REWARD, MIN_FRACTION, \
-    TARGET_MODEL_UPDATE_RATE, TRAINING_DATA_MODE, MEMORY_SIZE, VALIDATION_PERFORMANCE_ROUNDS
+    TARGET_MODEL_UPDATE_RATE, TRAINING_DATA_MODE, MEMORY_SIZE, VALIDATION_PERFORMANCE_ROUNDS, INPUT_SHAPE
 import numpy as np
 import events as e
 import tensorflow as tf
@@ -52,7 +52,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         return
 
     transition = Transition(state_to_features(self, old_game_state), self_action, state_to_features(self, new_game_state),
-                            reward_from_events(self, events))
+                            reward_from_events(self, new_game_state, events))
 
     self.transitions.append(transition)
     if GENERATE_STATISTICS:
@@ -79,7 +79,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     round_number = last_game_state['round']
     transition = Transition(state_to_features(self, last_game_state), last_action, None,
-                            reward_from_events(self, events))
+                            reward_from_events(self, None, events))
     append_and_train(self, transition)
     if self.validation_rounds > 0:
         self.validation_rounds -= 1
@@ -96,7 +96,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             self.statistics.plot()
 
 
-def reward_from_events(self, events: List[str]) -> int:
+def reward_from_events(self, new_game_state, events: List[str]) -> int:
     """
     *This is not a required function, but an idea to structure your code.*
 
@@ -104,7 +104,7 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 35,
+        e.COIN_COLLECTED: 25,
         e.KILLED_OPPONENT: 100,
         e.INVALID_ACTION: -20,
         e.COIN_FOUND: 5,
@@ -113,9 +113,50 @@ def reward_from_events(self, events: List[str]) -> int:
         e.WAITED: -5
     }
     reward_sum = 0
+
     for event in events:
         if event in game_rewards:
             reward_sum += game_rewards[event]
+
+    max_coin_aura_points = 10
+    max_bomb_danger_points = -12
+
+    if new_game_state is not None:
+        self_position = new_game_state['self'][3]
+        auras = np.copy(new_game_state['field'])
+        auras[auras==1] = -1
+        fields_to_check = np.full(auras.shape, False)
+
+        for coin in new_game_state['coins']:
+            auras[coin[1], coin[0]] = max_coin_aura_points + 1
+            fields_to_check[coin[1], coin[0]] = True
+            is_done = False
+            updated_aura = max_coin_aura_points
+            while not is_done or updated_aura > 0:
+                is_done = True
+                field_copy = np.copy(fields_to_check)
+                for y, row in enumerate(fields_to_check):
+                    for x, element in enumerate(row):
+                        if element:
+                            field_copy[y, x] = False
+                            dists_to_check = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+                            for dist in dists_to_check:
+                                aura = auras[y + dist[1], x + dist[0]]
+                                if aura > -1 and aura < updated_aura:
+                                    is_done = False
+                                    field_copy[y + dist[1], x + dist[0]] = True
+                                    auras[y + dist[1], x + dist[0]] = updated_aura
+
+                fields_to_check = field_copy
+                updated_aura -= 1
+        auras[auras == -1] = 0
+        reward_sum += auras[self_position[1], self_position[0]]
+        for bomb in new_game_state['bombs']:
+            bomb_position = bomb[0]
+            dist = (bomb_position[0] - self_position[0], bomb_position[1] - self_position[1])
+            if dist[0] == 0 and abs(dist[1]) <= 3:
+                reward_sum += max_bomb_danger_points / 4 * (4 - bomb[1])
+
     if reward_sum == 0:
         reward_sum = NEUTRAL_REWARD
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
@@ -133,13 +174,17 @@ def append_and_train(self, transition):
     if len(batch) >= BATCH_SIZE:
         X = []
         ys = []
+        next_states = np.array([t.next_state if t.next_state is not None else np.zeros(INPUT_SHAPE) for t in batch])
+        current_states = np.array([t.state for t in batch])
+        q_values_next_states = self.target_model.predict(next_states)
+        q_values_current_states = self.model.predict(current_states)
         for i, transition in enumerate(batch):
             index_action = INDICES_BY_ACTION[transition.action]
+            q_value_next_state = q_values_next_states[i]
             expected_return = transition.reward
             if transition.next_state is not None:
-                expected_return += DISCOUNT * np.max(
-                    self.target_model.predict(np.expand_dims(transition.next_state, axis=0))[0])
-            q_values_state = self.model.predict(np.expand_dims(transition.state, axis=0))[0]
+                expected_return += DISCOUNT * np.max(q_value_next_state)
+            q_values_state = q_values_current_states[i]
             q_values_state[index_action] = expected_return
             X.append(transition.state)
             ys.append(q_values_state)
@@ -156,6 +201,7 @@ def append_and_train(self, transition):
 
         self.validation_rounds = VALIDATION_PERFORMANCE_ROUNDS + 1 # Auto -1 after this function.
         self.statistics.append_validation()
+
 
 def get_training_batch(self):
     transitions = self.transitions

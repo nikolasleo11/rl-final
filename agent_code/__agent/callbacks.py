@@ -25,7 +25,6 @@ def setup(self):
     self.epsilon = EPSILON()
     self.batch_size = BATCH_SIZE
     self.model = init_model()
-    self.previous_bombs = []
     self.min_batch_fraction_size = MIN_FRACTION * BATCH_SIZE
     self.prev_game_state = None
     self.validation_rounds = VALIDATION_PERFORMANCE_ROUNDS
@@ -41,7 +40,7 @@ def setup(self):
 def init_model():
     model = Sequential()
     model.add(tf.keras.Input(shape=INPUT_SHAPE))
-    model.add(Dense(128, activation='relu'))
+    model.add(Dense(256, activation='relu'))
     model.add(Dropout(rate=0.1))
     model.add(Dense(64, activation='relu'))
     model.add(Dropout(rate=0.1))
@@ -53,7 +52,7 @@ def init_model():
 
 
 def act(self, game_state: dict):
-    if self.validation_rounds > 0 or random.random() > self.epsilon:
+    if not self.train or self.validation_rounds > 0 or random.random() > self.epsilon:
         features = np.expand_dims(state_to_features(self, game_state), axis=0)
         q_values = self.model.predict(features)[0]
         indices_best_actions = np.flip(np.argsort(q_values))
@@ -62,8 +61,8 @@ def act(self, game_state: dict):
             action = ACTIONS[index]
             if self.prev_game_state is not None and (self.prev_game_state == features).all() and action == 'WAIT':
                 continue
-            elif not is_action_valid(game_state['self'], game_state['field'], action):
-                continue
+            #elif not is_action_valid(game_state['self'], game_state['field'], action):
+            #    continue
             self.prev_game_state = features
             return action
 
@@ -98,37 +97,32 @@ def state_to_features(self, game_state: dict) -> np.array:
 def state_to_features_cnn(self, game_state: dict) -> np.array:
     if game_state is None:
         return np.zeros(INPUT_SHAPE)
-    agent_features = np.zeros((MAX_AGENT_COUNT, 3))
+    agent_features = np.zeros((MAX_AGENT_COUNT, 2))
     valid_actions_feature = get_valid_actions_feature(game_state['self'], game_state['field'])
     bomb_features = np.zeros((MAX_BOMB_COUNT, 3))
     coin_features = np.zeros((MAX_COIN_COUNT, 2))
     crate_features = np.zeros((MAX_CRATE_COUNT, 2))
 
     self_position = game_state['self'][3]
-    index = 0
     others_sorted = extract_dist_data_others(self_position, game_state['others'])
-    all_bombs = game_state['bombs'] + self.previous_bombs
-    bombs_sorted = extract_dist_data_bombs(self_position, all_bombs)
+    bombs_sorted = extract_dist_data_bombs(self_position, game_state['bombs'])
     coins_sorted = extract_dist_data_coins(self_position, game_state['coins'])
-    self.previous_bombs.clear()
-    # crates_sorted = np.argwhere(game_state['field'] == 1)
+    crates_sorted = extract_dist_data_coins(self_position, np.argwhere(game_state['field'] == 1))
+
     for i, others in enumerate(others_sorted):
         agent_features[i] = others
     for i, bomb in enumerate(bombs_sorted):
         bomb_features[i] = bomb
     for i, coin in enumerate(coins_sorted):
         coin_features[i] = coin
+        if i == coin_features.shape[0]-1:
+            break
+    for i, crate in enumerate(crates_sorted):
+        crate_features[i] = crate
+        if i == crate_features.shape[0]-1:
+            break
 
-    for bomb in all_bombs:
-        if bomb[1] <= 0 and bomb[1] > MIN_ALLOWED_BOMB_TIMER:
-            bomb_updated = (bomb[0], bomb[1] - 1)
-            self.previous_bombs.append(bomb_updated)
-
-    # for crate in crates_sorted:
-    #     crate_features[index] = convert_crate_state_to_feature(crate)
-    #     index += 1
-
-    vector = np.concatenate([valid_actions_feature, agent_features.reshape(-1), bomb_features.reshape(-1), coin_features.reshape(-1), crate_features.reshape(-1)])
+    vector = np.concatenate([np.array(self_position), valid_actions_feature, agent_features.reshape(-1), bomb_features.reshape(-1), coin_features.reshape(-1), crate_features.reshape(-1)])
     return vector.reshape(-1)
 
 
@@ -137,7 +131,7 @@ def extract_dist_data_others(self_position, others):
     for other in others:
         other_feature = convert_agent_state_to_feature(other)
         dist = (other_feature[0] - self_position[0], other_feature[1] - self_position[1])
-        features.append(np.array([dist[0], dist[1], other_feature[2]]))
+        features.append(np.array([dist[0], dist[1]]))
     features = sorted(features, key=lambda element: element[0] * element[0] + element[1] * element[1])
     return np.array(features)
 
@@ -353,3 +347,4 @@ def get_mirrored_position(position_tuple, x_axis = True):
     else:
         # Y-Axis.
         return (CENTER_POSITION[0] + diff[0], position_tuple[1])
+
