@@ -134,3 +134,4 @@ screenshots/.gitkeep
 Dockerfile
 *.pt
 agent_code/__agent/saved_plots/
+agent_code/__agent_model2/saved_plots/
